@@ -36,7 +36,7 @@ import './styles.css';
 import logo from './images/logo.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const BRAND_NAME = 'Luminateads';
+const BRAND_NAME = 'Luminate Ads';
 
 const api = axios.create({ baseURL: API_URL });
 api.interceptors.request.use((config) => {
@@ -140,7 +140,7 @@ function App() {
     <div className="app">
       <header className="topbar">
         <button className="brand" onClick={() => setActive('home')}>
-          <img className="brand-logo" src={logo} alt="Luminateads" />
+          <img className="brand-logo" src={logo} alt="Luminate Ads" />
         </button>
         <nav className={menuOpen ? 'nav open' : 'nav'}>
           {navItems.map(([key, label]) => (
@@ -178,7 +178,7 @@ function App() {
       <footer className="footer">
         <div className="footer-main">
           <div className="footer-brand">
-            <img className="footer-logo" src={logo} alt="Luminateads" />
+            <img className="footer-logo" src={logo} alt="Luminate Ads" />
             <p>Smart ads, brighter results. A structured advertising and referral platform for daily ad tasks, hierarchy growth, and admin-managed payouts.</p>
           </div>
           <div className="footer-col">
@@ -201,7 +201,7 @@ function App() {
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© 2026 Luminateads. All rights reserved.</span>
+          <span>© 2026 Luminate Ads. All rights reserved.</span>
           <div>
             <span>Privacy Policy</span>
             <span>Terms & Conditions</span>
@@ -222,7 +222,7 @@ function HomePage({ setActive, setAuthOpen }) {
         <div className="hero-overlay" />
         <div className="hero-content reveal">
           <span className="eyebrow"><ShieldCheck size={16} /> Smart ads brighter results</span>
-          <h1>Luminateads</h1>
+          <h1>Luminate Ads</h1>
           <p>Join a structured advertising platform where members select a package, complete daily ad tasks, build referral hierarchy, and receive weekly or monthly payouts managed by the company.</p>
           <div className="hero-actions">
             <button className="primary large" onClick={() => setAuthOpen(true)}>Start as Member <ArrowRight size={18} /></button>
@@ -287,7 +287,7 @@ function PackagesPage({ packages, isLoggedIn, setAuthOpen, setPaymentPackage }) 
   return (
     <section className="section">
       <span className="section-kicker">Packages</span>
-      <h2>Choose a plan and continue your Luminateads journey.</h2>
+      <h2>Choose a plan and continue your Luminate Ads journey.</h2>
       <div className="package-grid">
         {packages.map((pkg, index) => (
           <article className={index === 1 ? 'package-card featured' : 'package-card'} key={pkg.id}>
@@ -768,7 +768,7 @@ function AuthModal({ onClose, onSession, packages }) {
       <div className="auth-modal">
         <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
         <span className="section-kicker">{mode === 'login' ? 'Welcome back' : 'Create account'}</span>
-        <h2>{mode === 'login' ? 'Login to Luminateads' : 'Create your Luminateads account'}</h2>
+        <h2>{mode === 'login' ? 'Login to Luminate Ads' : 'Create your Luminate Ads account'}</h2>
         <form onSubmit={submit}>
           {mode === 'register' && (
             <>

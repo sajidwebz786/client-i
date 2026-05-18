@@ -69,7 +69,7 @@ button {
   align-items: center;
   gap: 10px;
   font-weight: 850;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .brand-logo {
@@ -214,16 +214,16 @@ button {
 
 .hero h1 {
   margin: 18px 0 14px;
-  font-size: clamp(2.55rem, 6.6vw, 4.85rem);
-  line-height: 1.02;
+  font-size: clamp(1.9rem, 3.35vw, 2.95rem);
+  line-height: 1.06;
   letter-spacing: 0;
 }
 
 .hero p {
   max-width: 690px;
   color: rgba(255, 255, 255, 0.88);
-  font-size: clamp(1.02rem, 2.2vw, 1.28rem);
-  line-height: 1.7;
+  font-size: clamp(0.96rem, 1.4vw, 1.08rem);
+  line-height: 1.62;
 }
 
 .eyebrow,
@@ -250,8 +250,8 @@ button {
 .section h2 {
   max-width: 850px;
   margin: 12px 0 22px;
-  font-size: clamp(2rem, 5vw, 4rem);
-  line-height: 1.03;
+  font-size: clamp(1.38rem, 2.2vw, 2.12rem);
+  line-height: 1.14;
   letter-spacing: 0;
 }
 
@@ -403,7 +403,7 @@ button {
 }
 
 .package-card > strong {
-  font-size: 2.65rem;
+  font-size: 1.85rem;
 }
 
 .package-card ul {
@@ -452,7 +452,7 @@ button {
 }
 
 .stat-card strong {
-  font-size: 1.6rem;
+  font-size: 1.18rem;
 }
 
 .portal-grid,
@@ -735,7 +735,7 @@ code {
 }
 
 .balance-panel strong {
-  font-size: 3rem;
+  font-size: 1.9rem;
 }
 
 .balance-panel .primary {
