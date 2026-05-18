@@ -114,7 +114,6 @@ function App() {
     ['portal', 'Dashboard'],
     ['profile', 'Profile'],
     ['tasks', 'Tasks'],
-    ['hierarchy', 'Hierarchy'],
     ['wallet', 'Wallet'],
     ['support', 'Support']
   ];
@@ -172,7 +171,6 @@ function App() {
         {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} />}
         {active === 'profile' && <ProfilePage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
         {active === 'tasks' && <TasksPage tasks={tasks.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
-        {active === 'hierarchy' && <HierarchyPage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
         {active === 'wallet' && <WalletPage wallet={wallet.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
         {active === 'support' && <SupportPage isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
       </main>
@@ -187,7 +185,7 @@ function App() {
             <strong>Platform</strong>
             <button onClick={() => setActive('packages')}>Packages</button>
             <button onClick={() => setActive('tasks')}>Daily Tasks</button>
-            <button onClick={() => setActive('hierarchy')}>Hierarchy</button>
+            <button onClick={() => setActive('profile')}>Hierarchy</button>
           </div>
           <div className="footer-col">
             <strong>Account</strong>
@@ -407,13 +405,14 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice }) {
           <button className="primary" onClick={saveProfile}>Save Profile</button>
         </article>
       </div>
+      <HierarchyPanel user={user} />
     </section>
   );
 }
 
-function HierarchyPage({ user, isLoggedIn, setAuthOpen }) {
-  if (!isLoggedIn) return <Gate title="Your referral structure starts here." text="Login to view upline, downline, referral levels, team count, and earning structure." action={setAuthOpen} />;
-
+function HierarchyPanel({ user }) {
+  const [downline, setDownline] = useState([]);
+  const [loading, setLoading] = useState(true);
   const levels = [
     ['Level 1', 'Direct referrals', '10%'],
     ['Level 2', 'Second level team', '5%'],
@@ -422,19 +421,30 @@ function HierarchyPage({ user, isLoggedIn, setAuthOpen }) {
     ['Level 5', 'Company managed', '0%']
   ];
 
+  useEffect(() => {
+    let mounted = true;
+    api.get('/referrals/downline')
+      .then((res) => mounted && setDownline(res.data.referrals || []))
+      .catch(() => mounted && setDownline([]))
+      .finally(() => mounted && setLoading(false));
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
-    <section className="section">
+    <div className="profile-hierarchy">
       <span className="section-kicker">Hierarchy</span>
-      <h2>Referral tree and team structure.</h2>
+      <h2>Your referral order inside your profile.</h2>
       <div className="hierarchy-grid">
         <article className="panel hierarchy-card">
           <TreePine size={30} />
           <h3>{user?.name || 'Member'}</h3>
           <p className="muted">Referral code: <strong>{user?.referralCode || 'Assigned after activation'}</strong></p>
           <div className="tree-lines">
-            <span>Upline: Company/Admin referral when no manual ID is entered</span>
-            <span>Downline: Updates as members join with your referral code</span>
-            <span>Team count: Visible after approvals and package activation</span>
+            <span>Upline: {user?.sponsor?.name || 'Company / direct joining'}</span>
+            <span>Direct team: {downline.filter((item) => item.level === 1).length}</span>
+            <span>Total hierarchy count: {loading ? 'Loading...' : downline.length}</span>
           </div>
         </article>
         <article className="panel">
@@ -446,8 +456,17 @@ function HierarchyPage({ user, isLoggedIn, setAuthOpen }) {
             </div>
           ))}
         </article>
+        <article className="panel hierarchy-list">
+          <h3>Hierarchy Order</h3>
+          {downline.length ? downline.map((item) => (
+            <div className="transaction-row" key={item.id}>
+              <span>Level {item.level} · {item.child?.name || 'Member'}</span>
+              <strong>{item.child?.referralCode || '-'}</strong>
+            </div>
+          )) : <p className="muted">Your hierarchy will appear here when members join using your invite code.</p>}
+        </article>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -482,6 +501,30 @@ function TaskCard({ task }) {
   const [message, setMessage] = useState('');
   const [progress, setProgress] = useState(0);
   const [notes, setNotes] = useState('');
+  const [watching, setWatching] = useState(false);
+  const videoUrl = task.videoUrl || task.mediaUrl || task.taskUrl || '';
+  const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(videoUrl);
+  const embedUrl = getEmbedUrl(videoUrl);
+
+  useEffect(() => {
+    if (!watching || isDirectVideo) return undefined;
+    const timer = setInterval(() => {
+      setProgress((value) => {
+        if (value >= 100) {
+          clearInterval(timer);
+          return 100;
+        }
+        return Math.min(100, value + 2);
+      });
+    }, 900);
+    return () => clearInterval(timer);
+  }, [watching, isDirectVideo]);
+
+  function onVideoProgress(event) {
+    const video = event.currentTarget;
+    if (!video.duration) return;
+    setProgress(Math.min(100, Math.round((video.currentTime / video.duration) * 100)));
+  }
 
   async function upload(file) {
     if (!file) return;
@@ -507,12 +550,22 @@ function TaskCard({ task }) {
               <strong>{task.title}</strong>
               <p>{task.description}</p>
               <small>{task.platform} · status {progress >= 100 ? 'completed' : progress > 0 ? 'in progress' : 'pending'}</small>
+              <div className="video-player">
+                {isDirectVideo ? (
+                  <video src={videoUrl} controls onTimeUpdate={onVideoProgress} onPlay={() => setWatching(true)} onEnded={() => setProgress(100)} />
+                ) : embedUrl ? (
+                  <iframe src={embedUrl} title={task.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                ) : (
+                  <div className="video-placeholder"><PlayCircle size={32} /><span>Open the activity link and track your watching progress here.</span></div>
+                )}
+              </div>
               <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
+              <div className="progress-meta"><span>{progress}% watched</span><span>{progress >= 100 ? 'Ready to submit' : 'Complete the video before uploading'}</span></div>
               <input placeholder="Remarks after watching ads" value={notes} onChange={(e) => setNotes(e.target.value)} />
               {message && <small className="form-note">{message}</small>}
             </div>
             <div className="task-actions">
-              <button className="ghost" onClick={() => setProgress((value) => Math.min(100, value + 25))}>Play / Track</button>
+              <button className="ghost" onClick={() => setWatching(true)}>Start Progress</button>
               <a className="ghost" href={task.taskUrl || '#'} target="_blank" rel="noreferrer">Open Link</a>
               <label className="upload-btn">
                 <Upload size={17} /> {busy ? 'Uploading' : 'Upload'}
@@ -521,6 +574,23 @@ function TaskCard({ task }) {
             </div>
     </article>
   );
+}
+
+function getEmbedUrl(url) {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.includes('youtube.com')) {
+      const id = parsed.searchParams.get('v');
+      return id ? `https://www.youtube.com/embed/${id}` : url;
+    }
+    if (parsed.hostname.includes('youtu.be')) {
+      return `https://www.youtube.com/embed/${parsed.pathname.replace('/', '')}`;
+    }
+    return '';
+  } catch {
+    return '';
+  }
 }
 
 function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
