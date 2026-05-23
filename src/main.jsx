@@ -83,11 +83,43 @@ const services = [
   ['Local Area Promotion', 'Pamphlets, banners, announcements, and neighborhood outreach.']
 ];
 
-const calendarDays = Array.from({ length: 30 }, (_, index) => ({
-  day: index + 1,
-  status: index < 11 ? 'completed' : index === 11 ? 'progress' : index < 15 ? 'missed' : 'pending',
-  count: 10 + (index % 6)
-}));
+function getMonthlyCalendar(date = new Date()) {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const days = [];
+
+  for (let i = 0; i < firstDay.getDay(); i += 1) {
+    days.push({ key: `blank-start-${i}`, blank: true });
+  }
+
+  for (let day = 1; day <= lastDay.getDate(); day += 1) {
+    const status = day < date.getDate() - 1 ? 'completed' : day === date.getDate() ? 'progress' : day < date.getDate() ? 'missed' : 'pending';
+    days.push({ key: `${year}-${month}-${day}`, day, status, count: 10 + (day % 6) });
+  }
+
+  while (days.length % 7 !== 0) {
+    days.push({ key: `blank-end-${days.length}`, blank: true });
+  }
+
+  return {
+    title: date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
+    days
+  };
+}
+
+function packageTax(pkg) {
+  return Number(pkg.taxAmount || 0);
+}
+
+function packageBaseAmount(pkg) {
+  return Number(pkg.baseAmount || 0);
+}
+
+function packageFinalAmount(pkg) {
+  return Number(pkg.finalAmount || packageBaseAmount(pkg) + packageTax(pkg));
+}
 
 const commissionLevels = [
   { level: 1, percent: 10, amount999: 99.9, label: 'Direct Referral' },
@@ -329,8 +361,8 @@ function PackagesPage({ packages, isLoggedIn, setAuthOpen, setPaymentPackage }) 
               <span>{pkg.name}</span>
               {index === 1 && <em>Popular</em>}
             </div>
-            <strong>{money(pkg.finalAmount)}</strong>
-            <p>Base {money(pkg.baseAmount)} + tax {money(pkg.taxAmount)}</p>
+            <strong>{money(packageBaseAmount(pkg))}</strong>
+            <p>Package amount. Tax is added only on the payment screen.</p>
             <ul>
               <li><CheckCircle2 size={16} /> Your own invite code</li>
               <li><CheckCircle2 size={16} /> Daily earning activities</li>
@@ -631,19 +663,33 @@ function HierarchyTree({ node, root = false }) {
 
 function TasksPage({ tasks, isLoggedIn, setAuthOpen }) {
   if (!isLoggedIn) return <Gate title="Daily ad activities unlock payouts." text="Login to see date-wise assignments, complete daily ads, and submit proof with remarks." action={setAuthOpen} />;
+  const calendar = getMonthlyCalendar();
 
   return (
     <section className="section">
       <span className="section-kicker">Activities</span>
       <h2>Monthly calendar-based ad tasks.</h2>
-      <div className="calendar-grid">
-        {calendarDays.map((item) => (
-          <button className={`calendar-day ${item.status}`} key={item.day}>
-            <strong>{item.day}</strong>
-            <span>{item.status}</span>
-            <small>{item.count} ads</small>
-          </button>
-        ))}
+      <div className="calendar-shell">
+        <div className="calendar-head">
+          <strong>{calendar.title}</strong>
+          <span>Daily activity tracker</span>
+        </div>
+        <div className="calendar-weekdays">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day}>{day}</span>)}
+        </div>
+        <div className="calendar-grid">
+          {calendar.days.map((item) => (
+            item.blank ? (
+              <span className="calendar-day blank" key={item.key} />
+            ) : (
+              <button className={`calendar-day ${item.status}`} key={item.key}>
+                <strong>{item.day}</strong>
+                <span>{item.status}</span>
+                <small>{item.count} ads</small>
+              </button>
+            )
+          ))}
+        </div>
       </div>
       <p className="muted task-policy">Complete 10 to 15 assigned ads each day. Missed dates are marked red and may affect weekly or monthly payout calculations.</p>
       <div className="task-list">
@@ -878,7 +924,10 @@ function PaymentModal({ pkg, onClose, setNotice }) {
   const [referralCode, setReferralCode] = useState('');
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
-  const qrSrc = getPaymentQrSrc(pkg.finalAmount);
+  const baseAmount = packageBaseAmount(pkg);
+  const taxAmount = packageTax(pkg);
+  const finalAmount = packageFinalAmount(pkg);
+  const qrSrc = getPaymentQrSrc(finalAmount);
 
   async function submit(event) {
     event.preventDefault();
@@ -900,8 +949,13 @@ function PaymentModal({ pkg, onClose, setNotice }) {
       <div className="auth-modal">
         <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
         <span className="section-kicker">Plan Payment</span>
-        <h2>{pkg.name} · {money(pkg.finalAmount)}</h2>
+        <h2>{pkg.name}</h2>
         <p className="muted">Enter a referral ID at this final step. If left blank, the company/admin referral account will be assigned.</p>
+        <div className="payment-breakdown">
+          <div><span>Package amount</span><strong>{money(baseAmount)}</strong></div>
+          <div><span>Tax</span><strong>{money(taxAmount)}</strong></div>
+          <div><span>Total payable</span><strong>{money(finalAmount)}</strong></div>
+        </div>
         <div className="payment-qr-card">
           <div className="phonepe-brand">
             <span>पे</span>
@@ -913,7 +967,7 @@ function PaymentModal({ pkg, onClose, setNotice }) {
           ) : (
             <div className="payment-qr-fallback" aria-label="PhonePe QR code placeholder">
               <QrCode size={112} />
-              <span>Add VITE_PAYMENT_QR_IMAGE or VITE_PAYMENT_UPI_ID</span>
+              <span>Scan the official payment QR provided by Luminate Ads.</span>
             </div>
           )}
           <div className="upi-row">

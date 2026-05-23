@@ -795,23 +795,65 @@ button {
   color: var(--muted);
 }
 
+.calendar-shell {
+  margin: 20px 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 35px rgba(20, 33, 61, 0.07);
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.calendar-head strong {
+  font-size: 1.18rem;
+}
+
+.calendar-head span,
+.calendar-weekdays span {
+  color: var(--muted);
+}
+
+.calendar-weekdays,
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 10px;
-  margin: 20px 0 14px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-weekdays span {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafc;
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .calendar-day {
-  min-height: 86px;
+  min-height: 112px;
   display: grid;
   gap: 3px;
-  align-content: center;
-  padding: 10px;
-  border-radius: 8px;
+  align-content: start;
+  padding: 12px;
+  border-radius: 0;
   background: #fff;
   color: var(--ink);
-  border: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.calendar-day.blank {
+  background: #f8fafc;
 }
 
 .calendar-day span,
@@ -1238,6 +1280,32 @@ select:focus {
   background: #fff;
 }
 
+.payment-breakdown {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.payment-breakdown div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.payment-breakdown div:last-child {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.payment-breakdown span {
+  color: var(--muted);
+}
+
 .phonepe-brand {
   display: grid;
   justify-items: center;
@@ -1449,8 +1517,18 @@ select:focus {
     gap: 28px;
   }
 
+  .calendar-shell {
+    overflow-x: auto;
+  }
+
+  .calendar-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .calendar-weekdays,
   .calendar-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-width: 680px;
   }
 
   .footer-main {
