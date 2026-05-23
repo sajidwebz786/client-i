@@ -12,10 +12,15 @@ import {
   Contact,
   Copy,
   Facebook,
+  Bike,
+  Car,
+  Crown,
   Gift,
+  Gem,
   Globe2,
   Headphones,
   Home,
+  House,
   Instagram,
   Landmark,
   Layers3,
@@ -24,12 +29,16 @@ import {
   Menu,
   MessageCircle,
   PlayCircle,
+  QrCode,
   ReceiptText,
   Send,
   ShieldCheck,
+  Smartphone,
+  Trophy,
   TreePine,
   Upload,
   Wallet,
+  UsersRound,
   X
 } from 'lucide-react';
 import './styles.css';
@@ -37,6 +46,10 @@ import logo from './images/logo.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BRAND_NAME = 'Luminate Ads';
+const PAYMENT_QR_IMAGE = import.meta.env.VITE_PAYMENT_QR_IMAGE || '';
+const PAYMENT_UPI_ID = import.meta.env.VITE_PAYMENT_UPI_ID || '';
+const PAYMENT_PAYEE_NAME = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'Luminateads';
+const PAYMENT_TERMINAL = 'Terminal 1-Q32970111';
 
 const api = axios.create({ baseURL: API_URL });
 api.interceptors.request.use((config) => {
@@ -75,6 +88,27 @@ const calendarDays = Array.from({ length: 30 }, (_, index) => ({
   status: index < 11 ? 'completed' : index === 11 ? 'progress' : index < 15 ? 'missed' : 'pending',
   count: 10 + (index % 6)
 }));
+
+const commissionLevels = [
+  { level: 1, percent: 10, amount999: 99.9, label: 'Direct Referral' },
+  { level: 2, percent: 5, amount999: 49.95, label: 'Level 2 Team' },
+  { level: 3, percent: 3, amount999: 29.97, label: 'Level 3 Team' },
+  { level: 4, percent: 1, amount999: 9.99, label: 'Level 4 Team' },
+  { level: 5, percent: 1, amount999: 9.99, label: 'Level 5 Team' },
+  { level: 6, percent: 1, amount999: 9.99, label: 'Level 6 Team' },
+  { level: 7, percent: 1, amount999: 9.99, label: 'Level 7 Team' },
+  { level: 8, percent: 1, amount999: 9.99, label: 'Level 8 Team' },
+  { level: 9, percent: 1, amount999: 9.99, label: 'Level 9 Team' },
+  { level: 10, percent: 1, amount999: 9.99, label: 'Level 10 Team' }
+];
+
+const achievementClubs = [
+  { name: 'Bronze Club', members: '1,000 members', benefit: 'Mobile, fridge, AC, TV, or any electric item', Icon: Smartphone },
+  { name: 'Silver Club', members: '10,000 members', benefit: 'Bike benefit', Icon: Bike },
+  { name: 'Gold Club', members: '1,00,000 members', benefit: 'Car benefit', Icon: Car },
+  { name: 'Platinum Club', members: '10,00,000 members', benefit: 'House flat or ₹25 lakh benefit', Icon: House },
+  { name: 'Diamond Club', members: '100,00,000 members', benefit: 'Villa flat benefit', Icon: Gem }
+];
 
 function useApiData(path, fallback, mapper = (x) => x) {
   const [data, setData] = useState(fallback);
@@ -308,7 +342,78 @@ function PackagesPage({ packages, isLoggedIn, setAuthOpen, setPaymentPackage }) 
           </article>
         ))}
       </div>
+      <ReferralIncomePlan />
     </section>
+  );
+}
+
+function ReferralIncomePlan() {
+  return (
+    <div className="income-plan">
+      <div className="income-plan-head">
+        <div>
+          <span className="section-kicker">Direct Referral Income Plan</span>
+          <h2>Earn up to level 10 from active referrals.</h2>
+        </div>
+        <div className="joining-card">
+          <BadgeIndianRupee size={24} />
+          <span>Joining Amount</span>
+          <strong>₹999</strong>
+          <small>Direct referral income 10% = ₹99.90</small>
+        </div>
+      </div>
+      <div className="income-layout">
+        <article className="panel">
+          <h3>How It Works</h3>
+          {[
+            'Invite a member directly and receive 10% after approval.',
+            'When your referred member invites others, income is paid by level.',
+            'Income is paid up to Level 10 as per the commission structure.',
+            'If someone joins without a referral, income goes to the admin / office wallet automatically.'
+          ].map((text, index) => (
+            <div className="plan-step" key={text}>
+              <span>{index + 1}</span>
+              <p>{text}</p>
+            </div>
+          ))}
+        </article>
+        <article className="level-chain">
+          <div className="level-person">
+            <Contact size={34} />
+            <strong>You</strong>
+            <span>Main invite member</span>
+          </div>
+          {commissionLevels.map((item) => (
+            <div className="chain-row" key={item.level}>
+              <span>{item.level}</span>
+              <div>
+                <strong>Level {item.level}</strong>
+                <small>{item.level === 1 ? 'Direct Referral' : `Earn ${item.percent}%`}</small>
+              </div>
+            </div>
+          ))}
+        </article>
+        <article className="panel commission-table">
+          <h3>Level Wise Commission Structure</h3>
+          <div className="commission-header">
+            <span>Level</span>
+            <span>Commission</span>
+            <span>From ₹999</span>
+          </div>
+          {commissionLevels.map((item) => (
+            <div className="commission-row" key={item.level}>
+              <span>Level {item.level}</span>
+              <strong>{item.percent}%</strong>
+              <strong>{money(item.amount999)}</strong>
+            </div>
+          ))}
+          <div className="commission-total">
+            <span>Total max earning up to level 10</span>
+            <strong>25% · ₹249.75</strong>
+          </div>
+        </article>
+      </div>
+    </div>
   );
 }
 
@@ -412,47 +517,57 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice }) {
 
 function HierarchyPanel({ user }) {
   const [downline, setDownline] = useState([]);
+  const [tree, setTree] = useState(null);
   const [loading, setLoading] = useState(true);
-  const levels = [
-    ['Level 1', 'Direct referrals', '10%'],
-    ['Level 2', 'Second level team', '5%'],
-    ['Level 3', 'Third level team', '3%'],
-    ['Level 4', 'Fourth level team', '1%'],
-    ['Level 5', 'Company managed', '0%']
-  ];
 
   useEffect(() => {
     let mounted = true;
-    api.get('/referrals/downline')
-      .then((res) => mounted && setDownline(res.data.referrals || []))
-      .catch(() => mounted && setDownline([]))
+    Promise.allSettled([
+      api.get('/referrals/downline'),
+      api.get('/referrals/tree?depth=4')
+    ])
+      .then(([downlineRes, treeRes]) => {
+        if (!mounted) return;
+        setDownline(downlineRes.status === 'fulfilled' ? downlineRes.value.data.referrals || [] : []);
+        setTree(treeRes.status === 'fulfilled' ? treeRes.value.data.tree : null);
+      })
       .finally(() => mounted && setLoading(false));
     return () => {
       mounted = false;
     };
   }, []);
 
+  const directCount = downline.filter((item) => item.level === 1).length;
+  const treeData = tree || buildDemoHierarchy(user);
+
   return (
     <div className="profile-hierarchy">
       <span className="section-kicker">Hierarchy</span>
       <h2>Your referral order inside your profile.</h2>
       <div className="hierarchy-grid">
-        <article className="panel hierarchy-card">
-          <TreePine size={30} />
-          <h3>{user?.name || 'Member'}</h3>
-          <p className="muted">Referral code: <strong>{user?.referralCode || 'Assigned after activation'}</strong></p>
-          <div className="tree-lines">
-            <span>Upline: {user?.sponsor?.name || 'Company / direct joining'}</span>
-            <span>Direct team: {downline.filter((item) => item.level === 1).length}</span>
-            <span>Total hierarchy count: {loading ? 'Loading...' : downline.length}</span>
+        <article className="panel hierarchy-tree-panel">
+          <div className="tree-summary">
+            <div>
+              <h3>{user?.name || 'Member'}</h3>
+              <p className="muted">Referral code: <strong>{user?.referralCode || 'Assigned after activation'}</strong></p>
+            </div>
+            <div>
+              <span>Direct Team</span>
+              <strong>{directCount}</strong>
+            </div>
+            <div>
+              <span>Total Hierarchy</span>
+              <strong>{loading ? '...' : downline.length}</strong>
+            </div>
           </div>
+          <HierarchyTree node={treeData} root />
         </article>
         <article className="panel">
           <h3>Earning Levels</h3>
-          {levels.map(([level, label, percent]) => (
-            <div className="transaction-row" key={level}>
-              <span>{level} · {label}</span>
-              <strong>{percent}</strong>
+          {commissionLevels.map((item) => (
+            <div className="transaction-row" key={item.level}>
+              <span>Level {item.level} · {item.label}</span>
+              <strong>{item.percent}%</strong>
             </div>
           ))}
         </article>
@@ -466,6 +581,50 @@ function HierarchyPanel({ user }) {
           )) : <p className="muted">Your hierarchy will appear here when members join using your invite code.</p>}
         </article>
       </div>
+    </div>
+  );
+}
+
+function buildDemoHierarchy(user) {
+  return {
+    name: user?.name || 'You',
+    referralCode: user?.referralCode || 'YOU',
+    directReferrals: [
+      {
+        name: 'Member A',
+        referralCode: '1',
+        directReferrals: [
+          { name: 'Member C', referralCode: '5', directReferrals: [{ name: 'Member G', referralCode: '9', directReferrals: [] }] },
+          { name: 'Member D', referralCode: '3', directReferrals: [{ name: 'Member H', referralCode: '7', directReferrals: [] }] }
+        ]
+      },
+      {
+        name: 'Member B',
+        referralCode: '2',
+        directReferrals: [
+          { name: 'Member E', referralCode: '4', directReferrals: [{ name: 'Member I', referralCode: '8', directReferrals: [] }] },
+          { name: 'Member F', referralCode: '6', directReferrals: [{ name: 'Member J', referralCode: '10', directReferrals: [] }] }
+        ]
+      }
+    ]
+  };
+}
+
+function HierarchyTree({ node, root = false }) {
+  const children = node?.directReferrals || [];
+  return (
+    <div className={root ? 'tree-node tree-root' : 'tree-node'}>
+      <div className={root ? 'tree-member root-member' : 'tree-member'}>
+        {root ? <Contact size={28} /> : <span>{node?.referralCode || '?'}</span>}
+        <strong>{node?.name || 'Member'}</strong>
+      </div>
+      {children.length > 0 && (
+        <div className="tree-children">
+          {children.slice(0, 4).map((child) => (
+            <HierarchyTree node={child} key={child.id || child.referralCode || child.name} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -649,7 +808,36 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
           </div>
         )) : <p className="muted">No activity yet. Your rewards and requests will appear here.</p>}
       </div>
+      <LevelAchievements />
     </section>
+  );
+}
+
+function LevelAchievements() {
+  return (
+    <div className="achievements">
+      <div className="achievement-head">
+        <div>
+          <span className="section-kicker">Level Achievements</span>
+          <h2>Monthly benefits for team growth milestones.</h2>
+        </div>
+        <div className="gift-rule">
+          <Gift size={24} />
+          <strong>Benefit One</strong>
+          <span>Within one month, 50 direct references get a ₹10,000 worth gift.</span>
+        </div>
+      </div>
+      <div className="achievement-grid">
+        {achievementClubs.map(({ name, members, benefit, Icon }) => (
+          <article className="achievement-card" key={name}>
+            <Icon size={26} />
+            <span>{members}</span>
+            <strong>{name}</strong>
+            <p>{benefit}</p>
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -690,6 +878,7 @@ function PaymentModal({ pkg, onClose, setNotice }) {
   const [referralCode, setReferralCode] = useState('');
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
+  const qrSrc = getPaymentQrSrc(pkg.finalAmount);
 
   async function submit(event) {
     event.preventDefault();
@@ -713,6 +902,25 @@ function PaymentModal({ pkg, onClose, setNotice }) {
         <span className="section-kicker">Plan Payment</span>
         <h2>{pkg.name} · {money(pkg.finalAmount)}</h2>
         <p className="muted">Enter a referral ID at this final step. If left blank, the company/admin referral account will be assigned.</p>
+        <div className="payment-qr-card">
+          <div className="phonepe-brand">
+            <span>पे</span>
+            <strong>PhonePe</strong>
+          </div>
+          <div className="qr-payee">Luminateads</div>
+          {qrSrc ? (
+            <img className="payment-qr-img" src={qrSrc} alt="PhonePe payment QR code for Luminateads" />
+          ) : (
+            <div className="payment-qr-fallback" aria-label="PhonePe QR code placeholder">
+              <QrCode size={112} />
+              <span>Add VITE_PAYMENT_QR_IMAGE or VITE_PAYMENT_UPI_ID</span>
+            </div>
+          )}
+          <div className="upi-row">
+            <span>BHIM UPI</span>
+            <strong>{PAYMENT_TERMINAL}</strong>
+          </div>
+        </div>
         <form onSubmit={submit}>
           <input value={referralCode} onChange={(e) => setReferralCode(e.target.value)} placeholder="Referral ID optional" />
           <input value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} placeholder="UTR / transaction number" />
@@ -725,6 +933,20 @@ function PaymentModal({ pkg, onClose, setNotice }) {
       </div>
     </div>
   );
+}
+
+function getPaymentQrSrc(amount) {
+  if (PAYMENT_QR_IMAGE) return PAYMENT_QR_IMAGE;
+  if (!PAYMENT_UPI_ID) return '';
+  const params = new URLSearchParams({
+    pa: PAYMENT_UPI_ID,
+    pn: PAYMENT_PAYEE_NAME,
+    am: String(Number(amount || 0)),
+    cu: 'INR',
+    tn: `${BRAND_NAME} package payment`
+  });
+  const upiUrl = `upi://pay?${params.toString()}`;
+  return `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=12&data=${encodeURIComponent(upiUrl)}`;
 }
 
 function Gate({ title, text, action }) {
