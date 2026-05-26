@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import axios from 'axios';
 import {
@@ -43,10 +43,11 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import logo from './images/logo.png';
+import paymentQrImage from './images/qrcode.jpeg';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BRAND_NAME = 'Luminate Ads';
-const PAYMENT_QR_IMAGE = import.meta.env.VITE_PAYMENT_QR_IMAGE || '';
+const PAYMENT_QR_IMAGE = import.meta.env.VITE_PAYMENT_QR_IMAGE || paymentQrImage;
 const PAYMENT_UPI_ID = import.meta.env.VITE_PAYMENT_UPI_ID || '';
 const PAYMENT_PAYEE_NAME = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'Luminateads';
 const PAYMENT_TERMINAL = 'Terminal 1-Q32970111';
@@ -61,9 +62,9 @@ api.interceptors.request.use((config) => {
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
 const demoPackages = [
-  { id: 'pkg-1', name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 0 },
-  { id: 'pkg-2', name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 1 },
-  { id: 'pkg-3', name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 2 }
+  { id: 'pkg-1', name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 1 },
+  { id: 'pkg-2', name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 2 },
+  { id: 'pkg-3', name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 3 }
 ];
 
 const demoTasks = [
@@ -707,12 +708,80 @@ function TaskCard({ task }) {
   const [progress, setProgress] = useState(0);
   const [notes, setNotes] = useState('');
   const [watching, setWatching] = useState(false);
+  const youtubeMountRef = useRef(null);
+  const youtubePlayerRef = useRef(null);
   const videoUrl = task.videoUrl || task.mediaUrl || task.taskUrl || '';
   const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(videoUrl);
   const embedUrl = getEmbedUrl(videoUrl);
+  const isYouTubeVideo = isYouTubeUrl(videoUrl);
+  const youtubeVideoId = getYouTubeId(videoUrl);
+  const canTrackYouTube = isYouTubeVideo && Boolean(youtubeVideoId);
 
   useEffect(() => {
-    if (!watching || isDirectVideo) return undefined;
+    if (!embedUrl || !canTrackYouTube || !youtubeMountRef.current) return undefined;
+    let cancelled = false;
+    let progressTimer;
+
+    function updateProgressFromPlayer() {
+      const player = youtubePlayerRef.current;
+      if (!player?.getDuration || !player?.getCurrentTime) return;
+      const duration = player.getDuration();
+      if (!duration) return;
+      const watched = Math.min(100, Math.round((player.getCurrentTime() / duration) * 100));
+      setProgress(watched);
+      if (watched >= 100) clearInterval(progressTimer);
+    }
+
+    function createPlayer() {
+      if (cancelled || !window.YT?.Player || !youtubeMountRef.current) return;
+      youtubePlayerRef.current = new window.YT.Player(youtubeMountRef.current, {
+        videoId: youtubeVideoId,
+        playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+        events: {
+          onStateChange: (event) => {
+            if (event.data === window.YT.PlayerState.PLAYING) {
+              setWatching(true);
+              clearInterval(progressTimer);
+              progressTimer = setInterval(updateProgressFromPlayer, 500);
+            }
+            if (event.data === window.YT.PlayerState.PAUSED) {
+              updateProgressFromPlayer();
+              clearInterval(progressTimer);
+            }
+            if (event.data === window.YT.PlayerState.ENDED) {
+              setProgress(100);
+              clearInterval(progressTimer);
+            }
+          }
+        }
+      });
+    }
+
+    if (window.YT?.Player) {
+      createPlayer();
+    } else {
+      const previousReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        previousReady?.();
+        createPlayer();
+      };
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const script = document.createElement('script');
+        script.src = 'https://www.youtube.com/iframe_api';
+        document.body.appendChild(script);
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      clearInterval(progressTimer);
+      youtubePlayerRef.current?.destroy?.();
+      youtubePlayerRef.current = null;
+    };
+  }, [canTrackYouTube, embedUrl, youtubeVideoId]);
+
+  useEffect(() => {
+    if (!watching || isDirectVideo || canTrackYouTube) return undefined;
     const timer = setInterval(() => {
       setProgress((value) => {
         if (value >= 100) {
@@ -723,7 +792,7 @@ function TaskCard({ task }) {
       });
     }, 900);
     return () => clearInterval(timer);
-  }, [watching, isDirectVideo]);
+  }, [watching, isDirectVideo, canTrackYouTube]);
 
   function onVideoProgress(event) {
     const video = event.currentTarget;
@@ -758,6 +827,8 @@ function TaskCard({ task }) {
               <div className="video-player">
                 {isDirectVideo ? (
                   <video src={videoUrl} controls onTimeUpdate={onVideoProgress} onPlay={() => setWatching(true)} onEnded={() => setProgress(100)} />
+                ) : embedUrl && canTrackYouTube ? (
+                  <div className="youtube-frame" ref={youtubeMountRef} />
                 ) : embedUrl ? (
                   <iframe src={embedUrl} title={task.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                 ) : (
@@ -770,12 +841,17 @@ function TaskCard({ task }) {
               {message && <small className="form-note">{message}</small>}
             </div>
             <div className="task-actions">
-              <button className="ghost" onClick={() => setWatching(true)}>Start Progress</button>
+              <button className="ghost" onClick={() => {
+                setWatching(true);
+                youtubePlayerRef.current?.playVideo?.();
+              }}>Start Progress</button>
               <a className="ghost" href={task.taskUrl || '#'} target="_blank" rel="noreferrer">Open Link</a>
-              <label className="upload-btn">
-                <Upload size={17} /> {busy ? 'Uploading' : 'Upload'}
-                <input type="file" onChange={(e) => upload(e.target.files?.[0])} />
-              </label>
+              {progress >= 100 && (
+                <label className="upload-btn">
+                  <Upload size={17} /> {busy ? 'Uploading' : 'Upload'}
+                  <input type="file" onChange={(e) => upload(e.target.files?.[0])} />
+                </label>
+              )}
             </div>
     </article>
   );
@@ -796,6 +872,30 @@ function getEmbedUrl(url) {
   } catch {
     return '';
   }
+}
+
+function isYouTubeUrl(url) {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname.includes('youtube.com') || hostname.includes('youtu.be');
+  } catch {
+    return false;
+  }
+}
+
+function getYouTubeId(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.includes('youtube.com')) {
+      if (parsed.pathname.includes('/embed/')) return parsed.pathname.split('/embed/')[1]?.split('/')[0] || '';
+      if (parsed.pathname.includes('/shorts/')) return parsed.pathname.split('/shorts/')[1]?.split('/')[0] || '';
+      return parsed.searchParams.get('v') || '';
+    }
+    if (parsed.hostname.includes('youtu.be')) return parsed.pathname.replace('/', '').split('/')[0];
+  } catch {
+    return '';
+  }
+  return '';
 }
 
 function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
