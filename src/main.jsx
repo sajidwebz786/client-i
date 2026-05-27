@@ -1021,7 +1021,6 @@ function SupportPage({ isLoggedIn, setAuthOpen, setNotice }) {
 
 function PaymentModal({ pkg, onClose, setNotice }) {
   const [utrNumber, setUtrNumber] = useState('');
-  const [referralCode, setReferralCode] = useState('');
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const baseAmount = packageBaseAmount(pkg);
@@ -1035,7 +1034,6 @@ function PaymentModal({ pkg, onClose, setNotice }) {
     const formData = new FormData();
     formData.append('packageId', pkg.id);
     formData.append('paymentMode', 'manual');
-    if (referralCode) formData.append('referralCode', referralCode);
     if (utrNumber) formData.append('utrNumber', utrNumber);
     if (file) formData.append('screenshot', file);
     await api.post('/payments/upload-proof', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -1050,7 +1048,7 @@ function PaymentModal({ pkg, onClose, setNotice }) {
         <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
         <span className="section-kicker">Plan Payment</span>
         <h2>{pkg.name}</h2>
-        <p className="muted">Enter a referral ID at this final step. If left blank, the company/admin referral account will be assigned.</p>
+        <p className="muted">Pay with PhonePe / UPI, enter UTR number, and upload receipt.</p>
         <div className="payment-breakdown">
           <div><span>Package amount</span><strong>{money(baseAmount)}</strong></div>
           <div><span>Tax</span><strong>{money(taxAmount)}</strong></div>
@@ -1076,7 +1074,6 @@ function PaymentModal({ pkg, onClose, setNotice }) {
           </div>
         </div>
         <form onSubmit={submit}>
-          <input value={referralCode} onChange={(e) => setReferralCode(e.target.value)} placeholder="Referral ID optional" />
           <input value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} placeholder="UTR / transaction number" />
           <label className="file-field">
             <Upload size={18} /> {file ? file.name : 'Upload screenshot or receipt'}
@@ -1118,7 +1115,7 @@ function Gate({ title, text, action }) {
 
 function AuthModal({ onClose, onSession, packages }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ name: '', email: '', mobile: '', password: '', identifier: '', referralCode: '', packageId: packages[0]?.id || '' });
+  const [form, setForm] = useState({ name: '', email: '', mobile: '', password: '', identifier: '', packageId: packages[0]?.id || '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -1151,7 +1148,7 @@ function AuthModal({ onClose, onSession, packages }) {
               <input required placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <input required placeholder="Mobile number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
-              <p className="muted">Package and referral ID are collected after registration.</p>
+              <p className="muted">Package selection is available after registration.</p>
             </>
           )}
           {mode === 'login' && (
