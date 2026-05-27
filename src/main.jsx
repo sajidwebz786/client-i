@@ -1124,6 +1124,14 @@ function AuthModal({ onClose, onSession, packages }) {
     setBusy(true);
     setError('');
     try {
+      if (mode === 'register') {
+        const availability = await api.get('/auth/availability', { params: { email: form.email, mobile: form.mobile } });
+        if (!availability.data.available) {
+          setError(availability.data.message || 'This account is already registered. Please login instead.');
+          setBusy(false);
+          return;
+        }
+      }
       const payload = mode === 'login'
         ? { identifier: form.identifier, password: form.password }
         : { name: form.name, email: form.email, mobile: form.mobile, password: form.password };
