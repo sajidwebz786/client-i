@@ -79,9 +79,9 @@ api.interceptors.response.use(
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
 const demoPackages = [
-  { id: 'pkg-1', name: '₹1,000 Plan', baseAmount: 1000, taxAmount: 0, finalAmount: 1000, minAdsRequired: 15, dailyAdsRequired: 15, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
-  { id: 'pkg-2', name: '₹2,000 Plan', baseAmount: 2000, taxAmount: 0, finalAmount: 2000, minAdsRequired: 30, dailyAdsRequired: 30, dailyWorkMinutes: 60, monthlyGenerationAmount: 500, dailyDebitAmount: 16.67, freeBannerCount: 2 },
-  { id: 'pkg-3', name: '₹3,000 Plan', baseAmount: 3000, taxAmount: 0, finalAmount: 3000, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 700, dailyDebitAmount: 23.33, freeBannerCount: 3 }
+  { id: 'pkg-1', name: '₹999 Plan', baseAmount: 999, taxAmount: 179.82, finalAmount: 1178.82, minAdsRequired: 15, dailyAdsRequired: 15, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
+  { id: 'pkg-2', name: '₹1,999 Plan', baseAmount: 1999, taxAmount: 359.82, finalAmount: 2358.82, minAdsRequired: 30, dailyAdsRequired: 30, dailyWorkMinutes: 60, monthlyGenerationAmount: 500, dailyDebitAmount: 16.67, freeBannerCount: 2 },
+  { id: 'pkg-3', name: '₹2,999 Plan', baseAmount: 2999, taxAmount: 539.82, finalAmount: 3538.82, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 700, dailyDebitAmount: 23.33, freeBannerCount: 3 }
 ];
 
 const demoTasks = [
@@ -1287,7 +1287,7 @@ function PaymentModal({ pkg, onClose, setNotice }) {
         <p className="muted">Scan the QR, enter UTR number, and upload receipt.</p>
         <div className="payment-breakdown">
           <div><span>Package amount</span><strong>{money(baseAmount)}</strong></div>
-          <div><span>Tax</span><strong>{money(taxAmount)}</strong></div>
+          <div><span>GST Tax</span><strong>{money(taxAmount)}</strong></div>
           <div><span>Total payable</span><strong>{money(finalAmount)}</strong></div>
         </div>
         <div className="payment-qr-card">
