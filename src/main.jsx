@@ -45,6 +45,7 @@ import './styles.css';
 import logo from './images/logo.png';
 import paymentQrImage from './images/qrcode.jpeg';
 import heroFallbackImage from './images/mlm-main.jpg';
+import heroAdsPlatformImage from './images/hero-ads-platform.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BRAND_NAME = 'Luminate Ads';
@@ -323,10 +324,13 @@ function App() {
 function HomePage({ setActive, setAuthOpen, banners = [] }) {
   const heroSlides = banners.length
     ? banners
-    : [{ id: 'fallback-hero', title: 'Luminate Ads', imageUrl: heroFallbackImage }];
+    : [
+        { id: 'fallback-hero-main', title: 'Luminate Ads', imageUrl: heroFallbackImage, local: true },
+        { id: 'fallback-hero-ads', title: 'Daily advertising tasks', imageUrl: heroAdsPlatformImage, local: true }
+      ];
   const [slideIndex, setSlideIndex] = useState(0);
   const activeSlide = heroSlides[slideIndex % heroSlides.length];
-  const heroImage = activeSlide?.id === 'fallback-hero' ? activeSlide.imageUrl : absoluteAssetUrl(activeSlide?.imageUrl);
+  const heroImage = activeSlide?.local ? activeSlide.imageUrl : absoluteAssetUrl(activeSlide?.imageUrl);
 
   useEffect(() => {
     if (heroSlides.length <= 1) return undefined;
