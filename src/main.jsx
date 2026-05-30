@@ -44,6 +44,7 @@ import {
 import './styles.css';
 import logo from './images/logo.png';
 import paymentQrImage from './images/qrcode.jpeg';
+import heroFallbackImage from './images/mlm-main.jpg';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BRAND_NAME = 'Luminate Ads';
@@ -227,6 +228,11 @@ function App() {
     setNotice(`Welcome to ${BRAND_NAME}. Choose a package to continue.`);
   }
 
+  function updateStoredUser(nextUser) {
+    localStorage.setItem('luminateads_user', JSON.stringify(nextUser));
+    setUser(nextUser);
+  }
+
   function logout() {
     localStorage.removeItem('luminateads_token');
     localStorage.removeItem('luminateads_user');
@@ -268,7 +274,7 @@ function App() {
         {active === 'services' && <ServicesPage />}
         {active === 'packages' && <PackagesPage packages={packages.data} setAuthOpen={setAuthOpen} isLoggedIn={isLoggedIn} setPaymentPackage={setPaymentPackage} />}
         {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} />}
-        {active === 'profile' && <ProfilePage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
+        {active === 'profile' && <ProfilePage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} onUserUpdate={updateStoredUser} />}
         {active === 'tasks' && <TasksPage tasks={tasks.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
         {active === 'wallet' && <WalletPage wallet={wallet.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
         {active === 'support' && <SupportPage isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
@@ -315,10 +321,25 @@ function App() {
 }
 
 function HomePage({ setActive, setAuthOpen, banners = [] }) {
+  const heroSlides = banners.length
+    ? banners
+    : [{ id: 'fallback-hero', title: 'Luminate Ads', imageUrl: heroFallbackImage }];
+  const [slideIndex, setSlideIndex] = useState(0);
+  const activeSlide = heroSlides[slideIndex % heroSlides.length];
+  const heroImage = activeSlide?.id === 'fallback-hero' ? activeSlide.imageUrl : absoluteAssetUrl(activeSlide?.imageUrl);
+
+  useEffect(() => {
+    if (heroSlides.length <= 1) return undefined;
+    const timer = window.setInterval(() => {
+      setSlideIndex((current) => (current + 1) % heroSlides.length);
+    }, 4500);
+    return () => window.clearInterval(timer);
+  }, [heroSlides.length]);
+
   return (
     <>
-      <section className="hero">
-        <div className="hero-overlay" />
+      <section className="hero slider-hero">
+        {heroImage && <img className="hero-slide-image" src={heroImage} alt={activeSlide?.title || 'Luminate Ads'} />}
         <div className="hero-content reveal">
           <span className="eyebrow"><ShieldCheck size={16} /> Smart ads brighter results</span>
           <h1>Luminate Ads</h1>
@@ -328,6 +349,18 @@ function HomePage({ setActive, setAuthOpen, banners = [] }) {
             <button className="glass" onClick={() => setActive('packages')}>See Plans</button>
           </div>
         </div>
+        {heroSlides.length > 1 && (
+          <div className="hero-dots" aria-label="Home banner slides">
+            {heroSlides.map((slide, index) => (
+              <button
+                key={slide.id || slide.imageUrl || index}
+                className={index === slideIndex ? 'active' : ''}
+                aria-label={`Show slide ${index + 1}`}
+                onClick={() => setSlideIndex(index)}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       <BannerScroller banners={banners} />
@@ -592,28 +625,79 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
   );
 }
 
-function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice }) {
+function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate }) {
   const [profile, setProfile] = useState({ name: user?.name || '', email: user?.email || '', mobile: user?.mobile || '' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
-  const [photo, setPhoto] = useState('');
+  const [photo, setPhoto] = useState(() => absoluteAssetUrl(user?.avatarUrl));
+  const [photoFile, setPhotoFile] = useState(null);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   if (!isLoggedIn) return <Gate title="Your profile is protected." text="Login to edit personal information, manage your photo, and submit secure bank details." action={setAuthOpen} />;
 
+  function showSuccess(text) {
+    setError('');
+    setMessage(text);
+    setNotice(text);
+  }
+
+  function showError(err, fallback) {
+    const text = err?.response?.data?.message || fallback;
+    setMessage('');
+    setError(text);
+    setNotice(text);
+  }
+
   async function saveProfile() {
-    await api.put('/auth/profile', profile);
-    setNotice('Profile information updated.');
+    try {
+      const res = await api.put('/auth/profile', profile);
+      if (res.data.user) onUserUpdate(res.data.user);
+      showSuccess('Profile information updated.');
+    } catch (err) {
+      showError(err, 'Unable to update profile information.');
+    }
+  }
+
+  async function savePhoto() {
+    if (!photoFile) {
+      setError('Please choose a profile photo before saving.');
+      setMessage('');
+      return;
+    }
+    try {
+      const formData = new FormData();
+      formData.append('photo', photoFile);
+      const res = await api.put('/auth/profile/photo', formData);
+      if (res.data.user) onUserUpdate(res.data.user);
+      setPhotoFile(null);
+      showSuccess('Profile photo saved.');
+    } catch (err) {
+      showError(err, 'Unable to save profile photo.');
+    }
   }
 
   async function savePassword() {
-    await api.put('/auth/change-password', passwordForm);
-    setPasswordForm({ currentPassword: '', newPassword: '' });
-    setNotice(user?.hasPassword ? 'Password changed successfully.' : 'Password added successfully.');
+    if (!passwordForm.newPassword) {
+      setError('Please enter a new password.');
+      setMessage('');
+      return;
+    }
+    try {
+      await api.put('/auth/change-password', passwordForm);
+      setPasswordForm({ currentPassword: '', newPassword: '' });
+      onUserUpdate({ ...user, hasPassword: true });
+      showSuccess(user?.hasPassword ? 'Password changed successfully.' : 'Password added successfully.');
+    } catch (err) {
+      showError(err, user?.hasPassword ? 'Unable to change password.' : 'Unable to add password.');
+    }
   }
 
   return (
     <section className="section">
       <span className="section-kicker">Profile</span>
       <h2>Personal information and account security.</h2>
+      {message && <p className="form-note success-note">{message}</p>}
+      {error && <p className="error">{error}</p>}
       <div className="profile-grid">
         <article className="panel">
           <h3>Profile Photo</h3>
@@ -622,9 +706,13 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice }) {
             <Upload size={18} /> Upload photo
             <input type="file" accept="image/*" onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) setPhoto(URL.createObjectURL(file));
+              if (file) {
+                setPhotoFile(file);
+                setPhoto(URL.createObjectURL(file));
+              }
             }} />
           </label>
+          <button className="ghost" onClick={savePhoto}>Save Photo</button>
         </article>
         <article className="panel">
           <h3>Personal Information</h3>
@@ -673,17 +761,18 @@ function HierarchyPanel({ user }) {
   }, []);
 
   const directCount = downline.filter((item) => item.level === 1).length;
-  const treeData = tree || buildDemoHierarchy(user);
+  const hasRealHierarchy = downline.length > 0;
+  const treeData = hasRealHierarchy && tree ? tree : buildDemoHierarchy(user);
 
   return (
     <div className="profile-hierarchy">
       <span className="section-kicker">Hierarchy</span>
-      <h2>Your referral order inside your profile.</h2>
+      <h2>{hasRealHierarchy ? 'Your referral order inside your profile.' : 'Hierarchy preview for your referral order.'}</h2>
       <div className="hierarchy-grid">
         <article className="panel hierarchy-tree-panel">
           <div className="tree-summary">
             <div>
-              <h3>{user?.name || 'Member'}</h3>
+              <h3>{hasRealHierarchy ? user?.name || 'Member' : 'Example hierarchy'}</h3>
               <p className="muted">Referral code: <strong>{user?.referralCode || 'Assigned after activation'}</strong></p>
             </div>
             <div>
@@ -695,6 +784,7 @@ function HierarchyPanel({ user }) {
               <strong>{loading ? '...' : downline.length}</strong>
             </div>
           </div>
+          {!hasRealHierarchy && <p className="muted preview-copy">This sample shows how your hierarchy will form after members join through your referral link. Real members will replace this preview automatically.</p>}
           <HierarchyTree node={treeData} root />
         </article>
         <article className="panel">
