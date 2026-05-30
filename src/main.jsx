@@ -49,8 +49,10 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BRAND_NAME = 'Luminate Ads';
 const PAYMENT_QR_IMAGE = import.meta.env.VITE_PAYMENT_QR_IMAGE || paymentQrImage;
 const PAYMENT_UPI_ID = import.meta.env.VITE_PAYMENT_UPI_ID || '';
-const PAYMENT_PAYEE_NAME = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'Luminateads';
-const PAYMENT_TERMINAL = 'Terminal 1-Q32970111';
+const PAYMENT_PAYEE_NAME = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'LASYA PROMOTERS';
+const PAYMENT_TERMINAL = 'Terminal 3-Q155769084';
+const SUPPORT_WHATSAPP = '919000424489';
+const SUPPORT_TELEGRAM = 'https://t.me/LuminateAds';
 
 const api = axios.create({ baseURL: API_URL });
 api.interceptors.request.use((config) => {
@@ -62,9 +64,9 @@ api.interceptors.request.use((config) => {
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
 const demoPackages = [
-  { id: 'pkg-1', name: '1K Package', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 0, freeBannerCount: 1 },
-  { id: 'pkg-2', name: '2K Package', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 0, freeBannerCount: 2 },
-  { id: 'pkg-3', name: '3K Package', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 0, freeBannerCount: 3 }
+  { id: 'pkg-1', name: '₹1,000 Plan', baseAmount: 1000, taxAmount: 0, finalAmount: 1000, minAdsRequired: 15, dailyAdsRequired: 15, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
+  { id: 'pkg-2', name: '₹2,000 Plan', baseAmount: 2000, taxAmount: 0, finalAmount: 2000, minAdsRequired: 30, dailyAdsRequired: 30, dailyWorkMinutes: 60, monthlyGenerationAmount: 500, dailyDebitAmount: 16.67, freeBannerCount: 2 },
+  { id: 'pkg-3', name: '₹3,000 Plan', baseAmount: 3000, taxAmount: 0, finalAmount: 3000, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 700, dailyDebitAmount: 23.33, freeBannerCount: 3 }
 ];
 
 const demoTasks = [
@@ -122,6 +124,35 @@ function packageFinalAmount(pkg) {
   return Number(pkg.finalAmount || packageBaseAmount(pkg) + packageTax(pkg));
 }
 
+function absoluteAssetUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_URL.replace(/\/api$/, '')}${path}`;
+}
+
+function referralLink(code) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('ref', code || '');
+  return url.toString();
+}
+
+function shareText(code) {
+  return `Join Luminate Ads with my referral code ${code}. ${referralLink(code)}`;
+}
+
+function dailyAds(pkg) {
+  return Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
+}
+
+function dailyIncome(pkg) {
+  return Number(pkg.monthlyGenerationAmount || 0) / 30;
+}
+
+function perAdValue(pkg) {
+  const ads = dailyAds(pkg);
+  return ads ? dailyIncome(pkg) / ads : 0;
+}
+
 const commissionLevels = [
   { level: 1, percent: 10, amount999: 99.9, label: 'Direct Referral' },
   { level: 2, percent: 5, amount999: 49.95, label: 'Level 2 Team' },
@@ -164,7 +195,7 @@ function useApiData(path, fallback, mapper = (x) => x) {
 function App() {
   const [active, setActive] = useState('home');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(() => Boolean(new URLSearchParams(window.location.search).get('ref')));
   const [paymentPackage, setPaymentPackage] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('luminateads_token'));
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('luminateads_user') || 'null'));
@@ -172,6 +203,7 @@ function App() {
   const packages = useApiData('/packages', demoPackages, (data) => data.packages || demoPackages);
   const tasks = useApiData('/tasks', demoTasks, (data) => data.tasks || demoTasks);
   const wallet = useApiData('/wallet', { wallet: { totalEarned: 0, availableBalance: 0, withdrawnAmount: 0 }, transactions: [] }, (data) => data);
+  const publicHome = useApiData('/public/home', { banners: [], packages: demoPackages, latestTasks: demoTasks }, (data) => data);
 
   const isLoggedIn = Boolean(token);
   const navItems = [
@@ -232,7 +264,7 @@ function App() {
       {notice && <div className="toast" onAnimationEnd={() => setNotice('')}>{notice}</div>}
 
       <main>
-        {active === 'home' && <HomePage setActive={setActive} setAuthOpen={setAuthOpen} />}
+        {active === 'home' && <HomePage setActive={setActive} setAuthOpen={setAuthOpen} banners={publicHome.data.banners || []} />}
         {active === 'services' && <ServicesPage />}
         {active === 'packages' && <PackagesPage packages={packages.data} setAuthOpen={setAuthOpen} isLoggedIn={isLoggedIn} setPaymentPackage={setPaymentPackage} />}
         {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} />}
@@ -282,7 +314,7 @@ function App() {
   );
 }
 
-function HomePage({ setActive, setAuthOpen }) {
+function HomePage({ setActive, setAuthOpen, banners = [] }) {
   return (
     <>
       <section className="hero">
@@ -297,6 +329,8 @@ function HomePage({ setActive, setAuthOpen }) {
           </div>
         </div>
       </section>
+
+      <BannerScroller banners={banners} />
 
       <section className="metrics band">
         {[
@@ -332,6 +366,20 @@ function HomePage({ setActive, setAuthOpen }) {
   );
 }
 
+function BannerScroller({ banners }) {
+  if (!banners.length) return null;
+  return (
+    <section className="banner-strip">
+      {banners.map((banner) => (
+        <a className="home-banner" key={banner.id} href={banner.linkUrl || '#'} target={banner.linkUrl ? '_blank' : undefined} rel="noreferrer">
+          <img src={absoluteAssetUrl(banner.imageUrl)} alt={banner.title} />
+          <span>{banner.title}</span>
+        </a>
+      ))}
+    </section>
+  );
+}
+
 function ServicesPage() {
   return (
     <section className="section">
@@ -363,11 +411,11 @@ function PackagesPage({ packages, isLoggedIn, setAuthOpen, setPaymentPackage }) 
               {index === 1 && <em>Popular</em>}
             </div>
             <strong>{money(packageBaseAmount(pkg))}</strong>
-            <p>Package amount. Tax is added only on the payment screen.</p>
+            <p>{dailyAds(pkg)} ads daily · {pkg.dailyWorkMinutes || 0} minutes · {money(pkg.monthlyGenerationAmount)} monthly generation.</p>
             <ul>
-              <li><CheckCircle2 size={16} /> Your own invite code</li>
-              <li><CheckCircle2 size={16} /> Daily earning activities</li>
-              <li><CheckCircle2 size={16} /> {pkg.freeBannerCount || 0} free banner credits</li>
+              <li><CheckCircle2 size={16} /> Approx daily income {money(dailyIncome(pkg))}</li>
+              <li><CheckCircle2 size={16} /> Per ad value {money(perAdValue(pkg))}</li>
+              <li><CheckCircle2 size={16} /> Missed day debit {money(pkg.dailyDebitAmount)}</li>
             </ul>
             <button className="primary full" onClick={() => isLoggedIn ? setPaymentPackage(pkg) : setAuthOpen(true)}>
               {isLoggedIn ? 'Continue with this plan' : 'Login to Continue'}
@@ -375,8 +423,40 @@ function PackagesPage({ packages, isLoggedIn, setAuthOpen, setPaymentPackage }) 
           </article>
         ))}
       </div>
+      <DailyAdIncomePlan packages={packages} />
       <ReferralIncomePlan />
     </section>
+  );
+}
+
+function DailyAdIncomePlan({ packages }) {
+  return (
+    <div className="income-plan">
+      <div className="income-plan-head">
+        <div>
+          <span className="section-kicker">Daily Advertisement Task Income Plan</span>
+          <h2>Complete daily ads to protect monthly generation.</h2>
+        </div>
+      </div>
+      <div className="commission-table panel">
+        <div className="commission-header">
+          <span>Plan</span>
+          <span>Daily Work</span>
+          <span>Monthly</span>
+        </div>
+        {packages.map((pkg) => (
+          <div className="commission-row" key={pkg.id}>
+            <span>{pkg.name} · {dailyAds(pkg)} ads</span>
+            <strong>{pkg.dailyWorkMinutes || 0} min</strong>
+            <strong>{money(pkg.monthlyGenerationAmount)}</strong>
+          </div>
+        ))}
+        <div className="commission-total">
+          <span>Missing a full daily assignment creates an automatic debit.</span>
+          <strong>Daily debit as per plan</strong>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -459,6 +539,12 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
     ['Invite Code', user?.referralCode || 'Pending', TreePine],
     ['Current Plan', user?.package?.name || packages[0]?.name || 'Not selected', Layers3]
   ];
+  const code = user?.referralCode || '';
+  const link = referralLink(code);
+
+  async function copyReferral() {
+    await navigator.clipboard?.writeText(link);
+  }
 
   return (
     <section className="section portal">
@@ -483,13 +569,14 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
           <h3>Invite Friends</h3>
           <div className="referral-box">
             <code>{user?.referralCode || 'ILLUXXXX'}</code>
-            <button className="icon-btn" title="Copy referral code"><Copy size={17} /></button>
+            <button className="icon-btn" title="Copy referral link" onClick={copyReferral}><Copy size={17} /></button>
           </div>
           <div className="share-row">
-            <button><MessageCircle size={17} /> WhatsApp</button>
-            <button><Send size={17} /> Telegram</button>
-            <button><LinkIcon size={17} /> Copy Link</button>
+            <a href={`https://wa.me/?text=${encodeURIComponent(shareText(code))}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /> WhatsApp</a>
+            <a href={`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(`Join Luminate Ads with referral code ${code}`)}`} target="_blank" rel="noreferrer"><Send size={17} /> Telegram</a>
+            <button onClick={copyReferral}><LinkIcon size={17} /> Copy Link</button>
           </div>
+          <p className="muted">Support WhatsApp: +91 90004 24489 · Telegram: {SUPPORT_TELEGRAM}</p>
         </article>
         <article className="panel">
           <h3>Getting Started</h3>
@@ -507,6 +594,7 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
 
 function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice }) {
   const [profile, setProfile] = useState({ name: user?.name || '', email: user?.email || '', mobile: user?.mobile || '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
   const [photo, setPhoto] = useState('');
 
   if (!isLoggedIn) return <Gate title="Your profile is protected." text="Login to edit personal information, manage your photo, and submit secure bank details." action={setAuthOpen} />;
@@ -514,6 +602,12 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice }) {
   async function saveProfile() {
     await api.put('/auth/profile', profile);
     setNotice('Profile information updated.');
+  }
+
+  async function savePassword() {
+    await api.put('/auth/change-password', passwordForm);
+    setPasswordForm({ currentPassword: '', newPassword: '' });
+    setNotice(user?.hasPassword ? 'Password changed successfully.' : 'Password added successfully.');
   }
 
   return (
@@ -538,9 +632,17 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice }) {
             <input placeholder="Full name" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} />
             <input placeholder="Email address" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} />
             <input placeholder="Mobile number" value={profile.mobile} onChange={(e) => setProfile({ ...profile, mobile: e.target.value })} />
-            <input type="password" placeholder="New password request" />
           </div>
           <button className="primary" onClick={saveProfile}>Save Profile</button>
+        </article>
+        <article className="panel">
+          <h3>{user?.hasPassword ? 'Change Password' : 'Add Password'}</h3>
+          <p className="muted">OTP login remains available. Adding a password lets you use either mode.</p>
+          <div className="form-grid">
+            {user?.hasPassword && <input type="password" placeholder="Current password" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} />}
+            <input type="password" placeholder="New password" value={passwordForm.newPassword} onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} />
+          </div>
+          <button className="ghost" onClick={savePassword}>{user?.hasPassword ? 'Change Password' : 'Add Password'}</button>
         </article>
       </div>
       <HierarchyPanel user={user} />
@@ -692,7 +794,7 @@ function TasksPage({ tasks, isLoggedIn, setAuthOpen }) {
           ))}
         </div>
       </div>
-      <p className="muted task-policy">Complete 10 to 15 assigned ads each day. Missed dates are marked red and may affect weekly or monthly payout calculations.</p>
+      <p className="muted task-policy">Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.</p>
       <div className="task-list">
         {tasks.map((task) => (
           <TaskCard task={task} key={task.id} />
@@ -1048,30 +1150,21 @@ function PaymentModal({ pkg, onClose, setNotice }) {
         <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
         <span className="section-kicker">Plan Payment</span>
         <h2>{pkg.name}</h2>
-        <p className="muted">Pay with PhonePe / UPI, enter UTR number, and upload receipt.</p>
+        <p className="muted">Scan the QR, enter UTR number, and upload receipt.</p>
         <div className="payment-breakdown">
           <div><span>Package amount</span><strong>{money(baseAmount)}</strong></div>
           <div><span>Tax</span><strong>{money(taxAmount)}</strong></div>
           <div><span>Total payable</span><strong>{money(finalAmount)}</strong></div>
         </div>
         <div className="payment-qr-card">
-          <div className="phonepe-brand">
-            <span>पे</span>
-            <strong>PhonePe</strong>
-          </div>
-          <div className="qr-payee">Luminateads</div>
           {qrSrc ? (
-            <img className="payment-qr-img" src={qrSrc} alt="PhonePe payment QR code for Luminateads" />
+            <img className="payment-qr-img" src={qrSrc} alt="Payment QR code" />
           ) : (
             <div className="payment-qr-fallback" aria-label="PhonePe QR code placeholder">
               <QrCode size={112} />
-              <span>Scan the official payment QR provided by Luminate Ads.</span>
+              <span>Scan the official payment QR.</span>
             </div>
           )}
-          <div className="upi-row">
-            <span>BHIM UPI</span>
-            <strong>{PAYMENT_TERMINAL}</strong>
-          </div>
         </div>
         <form onSubmit={submit}>
           <input value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} placeholder="UTR / transaction number" />
@@ -1115,7 +1208,8 @@ function Gate({ title, text, action }) {
 
 function AuthModal({ onClose, onSession, packages }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ name: '', email: '', mobile: '', password: '', identifier: '', packageId: packages[0]?.id || '' });
+  const [form, setForm] = useState(() => ({ name: '', email: '', mobile: '', password: '', identifier: '', otp: '', referralCode: new URLSearchParams(window.location.search).get('ref') || '', packageId: packages[0]?.id || '' }));
+  const [otpSent, setOtpSent] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -1134,11 +1228,50 @@ function AuthModal({ onClose, onSession, packages }) {
       }
       const payload = mode === 'login'
         ? { identifier: form.identifier, password: form.password }
-        : { name: form.name, email: form.email, mobile: form.mobile, password: form.password };
+        : { name: form.name, email: form.email, mobile: form.mobile, password: form.password, referralCode: form.referralCode };
       const res = await api.post(mode === 'login' ? '/auth/login' : '/auth/register', payload);
       onSession(res.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to complete request. Please check details.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendOtp() {
+    const target = String(form.mobile || form.identifier).replace(/\D/g, '');
+    if (target.length < 8) {
+      setError('Enter a valid mobile number for OTP login.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.post('/auth/send-otp', { target, channel: 'mobile', purpose: 'login' });
+      setOtpSent(true);
+      setError(res.data.otp ? `OTP sent. Test OTP: ${res.data.otp}` : 'OTP sent successfully.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to send OTP.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyOtpLogin() {
+    const target = String(form.mobile || form.identifier).replace(/\D/g, '');
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.post('/auth/verify-otp', { target, channel: 'mobile', purpose: 'login', code: form.otp });
+      if (res.data.token) {
+        onSession(res.data);
+      } else {
+        setMode('register');
+        setForm({ ...form, mobile: target });
+        setError('OTP verified. Complete your profile; password is optional.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to verify OTP.');
     } finally {
       setBusy(false);
     }
@@ -1156,19 +1289,33 @@ function AuthModal({ onClose, onSession, packages }) {
               <input required placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <input required placeholder="Mobile number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+              <input placeholder="Referral code" value={form.referralCode} onChange={(e) => setForm({ ...form, referralCode: e.target.value })} />
               <p className="muted">Package selection is available after registration.</p>
             </>
           )}
           {mode === 'login' && (
             <input required placeholder="Email or mobile" value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} />
           )}
-          <input required type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          <input required={mode === 'login'} type="password" placeholder={mode === 'login' ? 'Password' : 'Password optional'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           {error && <p className="error">{error}</p>}
           <button className="primary full" disabled={busy}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}</button>
         </form>
         <button className="text-link" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
           {mode === 'login' ? 'Create a new account' : 'I already have an account'}
         </button>
+        {mode === 'login' && (
+          <div className="panel" style={{ marginTop: 14 }}>
+            <h3>Login with OTP</h3>
+            <input placeholder="Mobile number" value={form.mobile || form.identifier} onChange={(e) => setForm({ ...form, mobile: e.target.value, identifier: e.target.value })} />
+            <button className="ghost full" disabled={busy} onClick={sendOtp}>{otpSent ? 'Resend OTP' : 'Send OTP'}</button>
+            {otpSent && (
+              <>
+                <input placeholder="Enter OTP" value={form.otp} onChange={(e) => setForm({ ...form, otp: e.target.value })} />
+                <button className="primary full" disabled={busy} onClick={verifyOtpLogin}>Verify OTP</button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
