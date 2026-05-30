@@ -62,6 +62,19 @@ api.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const url = error.config?.url || '';
+    const isAuthAttempt = url.includes('/auth/login') || url.includes('/auth/verify-otp') || url.includes('/auth/register');
+    if (error.response?.status === 401 && !isAuthAttempt) {
+      localStorage.removeItem('luminateads_token');
+      localStorage.removeItem('luminateads_user');
+      window.dispatchEvent(new Event('luminateads-session-expired'));
+    }
+    return Promise.reject(error);
+  }
+);
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
@@ -182,6 +195,14 @@ function useApiData(path, fallback, mapper = (x) => x) {
 
   useEffect(() => {
     let mounted = true;
+    if (!path) {
+      setData(fallback);
+      setLoading(false);
+      return () => {
+        mounted = false;
+      };
+    }
+    setLoading(true);
     api.get(path)
       .then((res) => mounted && setData(mapper(res.data)))
       .catch(() => mounted && setData(fallback))
@@ -202,12 +223,12 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('luminateads_token'));
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('luminateads_user') || 'null'));
   const [notice, setNotice] = useState('');
+  const isLoggedIn = Boolean(token);
   const packages = useApiData('/packages', demoPackages, (data) => data.packages || demoPackages);
-  const tasks = useApiData('/tasks', demoTasks, (data) => data.tasks || demoTasks);
-  const wallet = useApiData('/wallet', { wallet: { totalEarned: 0, availableBalance: 0, withdrawnAmount: 0 }, transactions: [] }, (data) => data);
+  const tasks = useApiData(isLoggedIn ? '/tasks' : null, demoTasks, (data) => data.tasks || demoTasks);
+  const wallet = useApiData(isLoggedIn ? '/wallet' : null, { wallet: { totalEarned: 0, availableBalance: 0, withdrawnAmount: 0 }, transactions: [] }, (data) => data);
   const publicHome = useApiData('/public/home', { banners: [], packages: demoPackages, latestTasks: demoTasks }, (data) => data);
 
-  const isLoggedIn = Boolean(token);
   const navItems = [
     ['home', 'Home'],
     ['services', 'Services'],
@@ -241,6 +262,17 @@ function App() {
     setUser(null);
     setActive('home');
   }
+
+  useEffect(() => {
+    function handleExpiredSession() {
+      setToken(null);
+      setUser(null);
+      setActive('home');
+      setNotice('Session expired. Please login again.');
+    }
+    window.addEventListener('luminateads-session-expired', handleExpiredSession);
+    return () => window.removeEventListener('luminateads-session-expired', handleExpiredSession);
+  }, []);
 
   return (
     <div className="app">
@@ -329,8 +361,6 @@ function HomePage({ setActive, setAuthOpen, banners = [] }) {
         { id: 'fallback-hero-ads', title: 'Daily advertising tasks', imageUrl: heroAdsPlatformImage, local: true }
       ];
   const [slideIndex, setSlideIndex] = useState(0);
-  const activeSlide = heroSlides[slideIndex % heroSlides.length];
-  const heroImage = activeSlide?.local ? activeSlide.imageUrl : absoluteAssetUrl(activeSlide?.imageUrl);
 
   useEffect(() => {
     if (heroSlides.length <= 1) return undefined;
@@ -343,7 +373,17 @@ function HomePage({ setActive, setAuthOpen, banners = [] }) {
   return (
     <>
       <section className="hero slider-hero">
-        {heroImage && <img className="hero-slide-image" src={heroImage} alt={activeSlide?.title || 'Luminate Ads'} />}
+        {heroSlides.map((slide, index) => {
+          const slideImage = slide.local ? slide.imageUrl : absoluteAssetUrl(slide.imageUrl);
+          return slideImage ? (
+            <img
+              className={index === slideIndex ? 'hero-slide-image active' : 'hero-slide-image'}
+              src={slideImage}
+              alt={slide.title || 'Luminate Ads'}
+              key={slide.id || slide.imageUrl || index}
+            />
+          ) : null;
+        })}
         <div className="hero-content reveal">
           <span className="eyebrow"><ShieldCheck size={16} /> Smart ads brighter results</span>
           <h1>Luminate Ads</h1>
