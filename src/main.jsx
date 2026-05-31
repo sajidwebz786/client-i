@@ -614,7 +614,7 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
     ['Available Rewards', money(wallet.wallet?.availableBalance), Wallet],
     ['Total Rewards', money(wallet.wallet?.totalEarned), BadgeIndianRupee],
     ['Invite Code', user?.referralCode || 'Pending', TreePine],
-    ['Current Plan', user?.package?.name || packages[0]?.name || 'Not selected', Layers3]
+    ['Current Plan', user?.package?.name || 'Not selected', Layers3]
   ];
   const code = user?.referralCode || '';
   const link = referralLink(code);
