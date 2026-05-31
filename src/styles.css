@@ -1399,6 +1399,33 @@ select:focus {
   color: #fff;
 }
 
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: var(--muted);
+  transform: translateY(-50%);
+}
+
+.password-toggle:hover {
+  background: var(--soft);
+  color: var(--ink);
+}
+
 .plan-switcher {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

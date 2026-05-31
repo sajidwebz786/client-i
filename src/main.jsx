@@ -15,6 +15,8 @@ import {
   Bike,
   Car,
   Crown,
+  Eye,
+  EyeOff,
   Gift,
   Gem,
   Globe2,
@@ -1322,7 +1324,8 @@ function Gate({ title, text, action }) {
 
 function AuthModal({ onClose, onSession, packages }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState(() => ({ name: '', email: '', mobile: '', password: '', identifier: '', referralCode: new URLSearchParams(window.location.search).get('ref') || '', packageId: packages[0]?.id || '' }));
+  const [form, setForm] = useState(() => ({ name: '', email: '', mobile: '', password: '', confirmPassword: '', identifier: '', referralCode: new URLSearchParams(window.location.search).get('ref') || '', packageId: packages[0]?.id || '' }));
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -1332,6 +1335,11 @@ function AuthModal({ onClose, onSession, packages }) {
     setError('');
     try {
       if (mode === 'register') {
+        if (form.password !== form.confirmPassword) {
+          setError('Password and repeat password do not match.');
+          setBusy(false);
+          return;
+        }
         const availability = await api.get('/auth/availability', { params: { email: form.email, mobile: form.mobile } });
         if (!availability.data.available) {
           setError(availability.data.message || 'This account is already registered. Please login instead.');
@@ -1374,7 +1382,20 @@ function AuthModal({ onClose, onSession, packages }) {
           {mode === 'login' && (
             <input required placeholder="Email or mobile" value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} />
           )}
-          <input required type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          <div className="password-field">
+            <input required type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            <button type="button" className="password-toggle" onClick={() => setShowPassword((value) => !value)} title={showPassword ? 'Hide password' : 'Show password'}>
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+          {mode === 'register' && (
+            <div className="password-field">
+              <input required type={showPassword ? 'text' : 'password'} placeholder="Repeat password" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} />
+              <button type="button" className="password-toggle" onClick={() => setShowPassword((value) => !value)} title={showPassword ? 'Hide password' : 'Show password'}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          )}
           {error && <p className="error">{error}</p>}
           <button className="primary full" disabled={busy}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}</button>
         </form>
