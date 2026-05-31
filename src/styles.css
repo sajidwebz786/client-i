@@ -1366,6 +1366,99 @@ select:focus {
   gap: 12px;
 }
 
+.auth-sketch-modal {
+  width: min(920px, 100%);
+  padding: 22px;
+}
+
+.auth-sketch-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(320px, 1.15fr);
+  gap: 22px;
+  align-items: stretch;
+}
+
+.auth-sketch-map {
+  display: flex;
+  flex-direction: column;
+  min-height: 560px;
+  padding: 26px;
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(246, 154, 62, 0.13), rgba(28, 157, 136, 0.12)), #fbfcf9;
+  border: 1px solid var(--line);
+}
+
+.auth-sketch-map img {
+  width: 180px;
+  height: auto;
+  margin-bottom: 24px;
+}
+
+.auth-sketch-map h2 {
+  margin: 6px 0 18px;
+}
+
+.sketch-lines {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 22px;
+}
+
+.sketch-lines span {
+  position: relative;
+  display: block;
+  min-height: 42px;
+  padding: 11px 14px;
+  border: 1px dashed rgba(20, 33, 61, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.sketch-lines span::after {
+  content: "";
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: -8px;
+  height: 8px;
+  border-left: 1px solid rgba(20, 33, 61, 0.22);
+}
+
+.sketch-lines span:last-child::after {
+  display: none;
+}
+
+.sketch-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.auth-sketch-main {
+  padding: 10px 10px 4px;
+}
+
+.auth-sketch-main h2 {
+  margin: 6px 38px 18px 0;
+}
+
+.otp-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.otp-panel h3 {
+  margin: 0 0 4px;
+}
+
 .payment-qr-card {
   display: grid;
   justify-items: center;
@@ -1646,5 +1739,42 @@ select:focus {
 
   .achievement-grid {
     grid-template-columns: 1fr;
+  }
+
+  .auth-sketch-modal {
+    padding: 16px;
+  }
+
+  .auth-sketch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-sketch-map {
+    min-height: auto;
+    padding: 18px;
+  }
+
+  .auth-sketch-map img {
+    width: 150px;
+    margin-bottom: 14px;
+  }
+
+  .sketch-lines {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .sketch-lines span {
+    min-height: 36px;
+    padding: 9px 12px;
+    font-size: 0.86rem;
+  }
+
+  .sketch-lines span::after {
+    display: none;
+  }
+
+  .auth-sketch-main {
+    padding: 0;
   }
 }

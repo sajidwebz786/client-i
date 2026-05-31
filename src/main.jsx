@@ -1413,43 +1413,67 @@ function AuthModal({ onClose, onSession, packages }) {
 
   return (
     <div className="modal-backdrop">
-      <div className="auth-modal">
+      <div className="auth-modal auth-sketch-modal">
         <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
-        <span className="section-kicker">{mode === 'login' ? 'Welcome back' : 'Create account'}</span>
-        <h2>{mode === 'login' ? 'Login to Luminate Ads' : 'Create your Luminate Ads account'}</h2>
-        <form onSubmit={submit}>
-          {mode === 'register' && (
-            <>
-              <input required placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              <input required placeholder="Mobile number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
-              <input placeholder="Referral code" value={form.referralCode} onChange={(e) => setForm({ ...form, referralCode: e.target.value })} />
-              <p className="muted">Package selection is available after registration.</p>
-            </>
-          )}
-          {mode === 'login' && (
-            <input required placeholder="Email or mobile" value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} />
-          )}
-          <input required={mode === 'login'} type="password" placeholder={mode === 'login' ? 'Password' : 'Password optional'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          {error && <p className="error">{error}</p>}
-          <button className="primary full" disabled={busy}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}</button>
-        </form>
-        <button className="text-link" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
-          {mode === 'login' ? 'Create a new account' : 'I already have an account'}
-        </button>
-        {mode === 'login' && (
-          <div className="panel" style={{ marginTop: 14 }}>
-            <h3>Login with OTP</h3>
-            <input placeholder="Mobile number" value={form.mobile || form.identifier} onChange={(e) => setForm({ ...form, mobile: e.target.value, identifier: e.target.value })} />
-            <button className="ghost full" disabled={busy} onClick={sendOtp}>{otpSent ? 'Resend OTP' : 'Send OTP'}</button>
-            {otpSent && (
-              <>
-                <input placeholder="Enter OTP" value={form.otp} onChange={(e) => setForm({ ...form, otp: e.target.value })} />
-                <button className="primary full" disabled={busy} onClick={verifyOtpLogin}>Verify OTP</button>
-              </>
-            )}
+        <div className="auth-sketch-grid">
+          <aside className="auth-sketch-map" aria-label="Account options">
+            <img src={logo} alt="Luminate Ads" />
+            <span className="section-kicker">Registration</span>
+            <h2>Join, login, or continue with OTP.</h2>
+            <div className="sketch-lines" aria-hidden="true">
+              <span>Name</span>
+              <span>Email</span>
+              <span>Mobile</span>
+              <span>Password</span>
+              <span>Referral code</span>
+            </div>
+            <div className="sketch-actions">
+              <button className={mode === 'register' ? 'primary' : 'ghost'} type="button" onClick={() => setMode('register')}>Register</button>
+              <button className={mode === 'login' ? 'primary' : 'ghost'} type="button" onClick={() => setMode('login')}>Login</button>
+              <button className="ghost" type="button" onClick={() => setError('Admin login is available in the separate admin portal.')}>Admin Login</button>
+              <button className="ghost" type="button" onClick={() => setError('Use the package and profile screens after login to complete account configuration.')}>Config</button>
+            </div>
+          </aside>
+
+          <div className="auth-sketch-main">
+            <span className="section-kicker">{mode === 'login' ? 'Welcome back' : 'Create account'}</span>
+            <h2>{mode === 'login' ? 'Login to Luminate Ads' : 'Create your Luminate Ads account'}</h2>
+            <form onSubmit={submit}>
+              {mode === 'register' && (
+                <>
+                  <input required placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                  <input required placeholder="Mobile number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+                  <input placeholder="Referral code" value={form.referralCode} onChange={(e) => setForm({ ...form, referralCode: e.target.value })} />
+                  <p className="muted">Package selection is available after registration.</p>
+                </>
+              )}
+              {mode === 'login' && (
+                <input required placeholder="Email or mobile" value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} />
+              )}
+              <input required={mode === 'login'} type="password" placeholder={mode === 'login' ? 'Password' : 'Password optional'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              {error && <p className="error">{error}</p>}
+              <button className="primary full" disabled={busy}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register & Continue'}</button>
+            </form>
+            <button className="text-link" type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+              {mode === 'login' ? 'New member registration' : 'Already registered? Login'}
+            </button>
+            <div className="otp-panel">
+              <div>
+                <h3>OTP Login</h3>
+                <p className="muted">Use mobile OTP without disturbing password login.</p>
+              </div>
+              <input placeholder="Mobile number" value={form.mobile || form.identifier} onChange={(e) => setForm({ ...form, mobile: e.target.value, identifier: e.target.value })} />
+              <button className="ghost full" type="button" disabled={busy} onClick={sendOtp}>{otpSent ? 'Resend OTP' : 'Generate OTP'}</button>
+              {otpSent && (
+                <>
+                  <input placeholder="Enter OTP" value={form.otp} onChange={(e) => setForm({ ...form, otp: e.target.value })} />
+                  <button className="primary full" type="button" disabled={busy} onClick={verifyOtpLogin}>Verify & Continue</button>
+                </>
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
