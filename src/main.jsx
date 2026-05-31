@@ -203,7 +203,7 @@ function useApiData(path, fallback, mapper = (x) => x) {
       };
     }
     setLoading(true);
-    api.get(path)
+    api.get(path, { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
       .then((res) => mounted && setData(mapper(res.data)))
       .catch(() => mounted && setData(fallback))
       .finally(() => mounted && setLoading(false));
@@ -930,9 +930,9 @@ function TasksPage({ tasks, isLoggedIn, setAuthOpen }) {
       </div>
       <p className="muted task-policy">Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.</p>
       <div className="task-list">
-        {tasks.map((task) => (
+        {tasks.length ? tasks.map((task) => (
           <TaskCard task={task} key={task.id} />
-        ))}
+        )) : <p className="muted">No active tasks are available right now. New ad tasks posted by admin will appear here automatically.</p>}
       </div>
     </section>
   );
