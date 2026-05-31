@@ -66,7 +66,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const url = error.config?.url || '';
-    const isAuthAttempt = url.includes('/auth/login') || url.includes('/auth/verify-otp') || url.includes('/auth/register');
+    const isAuthAttempt = url.includes('/auth/login') || url.includes('/auth/register');
     if (error.response?.status === 401 && !isAuthAttempt) {
       localStorage.removeItem('luminateads_token');
       localStorage.removeItem('luminateads_user');
@@ -246,8 +246,8 @@ function App() {
     setToken(payload.token);
     setUser(payload.user);
     setAuthOpen(false);
-    setActive('packages');
-    setNotice(`Welcome to ${BRAND_NAME}. Choose a package to continue.`);
+    setActive('portal');
+    setNotice(`Welcome to ${BRAND_NAME}. Your dashboard is ready.`);
   }
 
   function updateStoredUser(nextUser) {
@@ -308,7 +308,7 @@ function App() {
         {active === 'packages' && <PackagesPage packages={packages.data} setAuthOpen={setAuthOpen} isLoggedIn={isLoggedIn} setPaymentPackage={setPaymentPackage} />}
         {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} />}
         {active === 'profile' && <ProfilePage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} onUserUpdate={updateStoredUser} />}
-        {active === 'tasks' && <TasksPage tasks={tasks.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
+        {active === 'tasks' && <TasksPage tasks={tasks.data} packages={packages.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
         {active === 'wallet' && <WalletPage wallet={wallet.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
         {active === 'support' && <SupportPage isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
       </main>
@@ -769,7 +769,7 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
         </article>
         <article className="panel">
           <h3>{user?.hasPassword ? 'Change Password' : 'Add Password'}</h3>
-          <p className="muted">OTP login remains available. Adding a password lets you use either mode.</p>
+          <p className="muted">Use a password to keep your account login simple and secure.</p>
           <div className="form-grid">
             {user?.hasPassword && <input type="password" placeholder="Current password" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} />}
             <input type="password" placeholder="New password" value={passwordForm.newPassword} onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} />
@@ -898,14 +898,26 @@ function HierarchyTree({ node, root = false }) {
   );
 }
 
-function TasksPage({ tasks, isLoggedIn, setAuthOpen }) {
+function TasksPage({ tasks, packages, isLoggedIn, setAuthOpen }) {
+  const [selectedPlan, setSelectedPlan] = useState(packages[0]?.id || '');
   if (!isLoggedIn) return <Gate title="Daily ad activities unlock payouts." text="Login to see date-wise assignments, complete daily ads, and submit proof with remarks." action={setAuthOpen} />;
   const calendar = getMonthlyCalendar();
+  const activePlan = packages.find((pkg) => pkg.id === selectedPlan) || packages[0];
+  const planLabels = ['A Plan', 'B Plan', 'C Plan'];
 
   return (
     <section className="section">
       <span className="section-kicker">Activities</span>
       <h2>Monthly calendar-based ad tasks.</h2>
+      <div className="plan-switcher" aria-label="Task plan selector">
+        {packages.slice(0, 3).map((pkg, index) => (
+          <button key={pkg.id} className={activePlan?.id === pkg.id ? 'active' : ''} onClick={() => setSelectedPlan(pkg.id)}>
+            <strong>{planLabels[index] || pkg.name}</strong>
+            <span>{pkg.name}</span>
+          </button>
+        ))}
+      </div>
+      {activePlan && <p className="muted task-plan-note">Selected view: {activePlan.name}. Admin uploaded videos appear below.</p>}
       <div className="calendar-shell">
         <div className="calendar-head">
           <strong>{calendar.title}</strong>
@@ -939,10 +951,7 @@ function TasksPage({ tasks, isLoggedIn, setAuthOpen }) {
 }
 
 function TaskCard({ task }) {
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
   const [progress, setProgress] = useState(0);
-  const [notes, setNotes] = useState('');
   const [watching, setWatching] = useState(false);
   const youtubeMountRef = useRef(null);
   const youtubePlayerRef = useRef(null);
@@ -1036,23 +1045,6 @@ function TaskCard({ task }) {
     setProgress(Math.min(100, Math.round((video.currentTime / video.duration) * 100)));
   }
 
-  async function upload(file) {
-    if (!file) return;
-    setBusy(true);
-    setMessage('');
-    try {
-      const formData = new FormData();
-      formData.append('screenshot', file);
-      formData.append('notes', notes);
-      await api.post(`/tasks/${task.id}/submit`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setMessage('Submitted successfully. We will update you soon.');
-    } catch (err) {
-      setMessage(err.response?.data?.message || 'Upload failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <article className="task-card">
             <span className="task-icon">{task.platform === 'youtube' ? <PlayCircle /> : task.platform === 'whatsapp' ? <MessageCircle /> : <ClipboardCheck />}</span>
@@ -1060,7 +1052,10 @@ function TaskCard({ task }) {
               <strong>{task.title}</strong>
               <p>{task.description}</p>
               <small>{task.platform} · status {progress >= 100 ? 'completed' : progress > 0 ? 'in progress' : 'pending'}</small>
-              <div className="video-player">
+              <div className="video-player" onClick={() => {
+                setWatching(true);
+                youtubePlayerRef.current?.playVideo?.();
+              }}>
                 {isDirectVideo ? (
                   <video src={videoUrl} controls onTimeUpdate={onVideoProgress} onPlay={() => setWatching(true)} onEnded={() => setProgress(100)} />
                 ) : embedUrl && canTrackYouTube ? (
@@ -1072,22 +1067,7 @@ function TaskCard({ task }) {
                 )}
               </div>
               <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-              <div className="progress-meta"><span>{progress}% watched</span><span>{progress >= 100 ? 'Ready to submit' : 'Complete the video before uploading'}</span></div>
-              <input placeholder="Remarks after watching ads" value={notes} onChange={(e) => setNotes(e.target.value)} />
-              {message && <small className="form-note">{message}</small>}
-            </div>
-            <div className="task-actions">
-              <button className="ghost" onClick={() => {
-                setWatching(true);
-                youtubePlayerRef.current?.playVideo?.();
-              }}>Start Progress</button>
-              <a className="ghost" href={task.taskUrl || '#'} target="_blank" rel="noreferrer">Open Link</a>
-              {progress >= 100 && (
-                <label className="upload-btn">
-                  <Upload size={17} /> {busy ? 'Uploading' : 'Upload'}
-                  <input type="file" onChange={(e) => upload(e.target.files?.[0])} />
-                </label>
-              )}
+              <div className="progress-meta"><span>{progress}% watched</span><span>{progress >= 100 ? 'Completed' : 'Watch the video to move progress'}</span></div>
             </div>
     </article>
   );
@@ -1342,8 +1322,7 @@ function Gate({ title, text, action }) {
 
 function AuthModal({ onClose, onSession, packages }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState(() => ({ name: '', email: '', mobile: '', password: '', identifier: '', otp: '', referralCode: new URLSearchParams(window.location.search).get('ref') || '', packageId: packages[0]?.id || '' }));
-  const [otpSent, setOtpSent] = useState(false);
+  const [form, setForm] = useState(() => ({ name: '', email: '', mobile: '', password: '', identifier: '', referralCode: new URLSearchParams(window.location.search).get('ref') || '', packageId: packages[0]?.id || '' }));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -1372,108 +1351,33 @@ function AuthModal({ onClose, onSession, packages }) {
     }
   }
 
-  async function sendOtp() {
-    const target = String(form.mobile || form.identifier).replace(/\D/g, '');
-    if (target.length < 8) {
-      setError('Enter a valid mobile number for OTP login.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      const res = await api.post('/auth/send-otp', { target, channel: 'mobile', purpose: 'login' });
-      setOtpSent(true);
-      setError(res.data.otp ? `OTP sent. Test OTP: ${res.data.otp}` : 'OTP sent successfully.');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Unable to send OTP.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyOtpLogin() {
-    const target = String(form.mobile || form.identifier).replace(/\D/g, '');
-    setBusy(true);
-    setError('');
-    try {
-      const res = await api.post('/auth/verify-otp', { target, channel: 'mobile', purpose: 'login', code: form.otp });
-      if (res.data.token) {
-        onSession(res.data);
-      } else {
-        setMode('register');
-        setForm({ ...form, mobile: target });
-        setError('OTP verified. Complete your profile; password is optional.');
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Unable to verify OTP.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="modal-backdrop">
-      <div className="auth-modal auth-sketch-modal">
+      <div className="auth-modal auth-simple-modal">
         <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
-        <div className="auth-sketch-grid">
-          <aside className="auth-sketch-map" aria-label="Account options">
-            <img src={logo} alt="Luminate Ads" />
-            <span className="section-kicker">Registration</span>
-            <h2>Join, login, or continue with OTP.</h2>
-            <div className="sketch-lines" aria-hidden="true">
-              <span>Name</span>
-              <span>Email</span>
-              <span>Mobile</span>
-              <span>Password</span>
-              <span>Referral code</span>
-            </div>
-            <div className="sketch-actions">
-              <button className={mode === 'register' ? 'primary' : 'ghost'} type="button" onClick={() => setMode('register')}>Register</button>
-              <button className={mode === 'login' ? 'primary' : 'ghost'} type="button" onClick={() => setMode('login')}>Login</button>
-              <button className="ghost" type="button" onClick={() => setError('Admin login is available in the separate admin portal.')}>Admin Login</button>
-              <button className="ghost" type="button" onClick={() => setError('Use the package and profile screens after login to complete account configuration.')}>Config</button>
-            </div>
-          </aside>
-
-          <div className="auth-sketch-main">
-            <span className="section-kicker">{mode === 'login' ? 'Welcome back' : 'Create account'}</span>
-            <h2>{mode === 'login' ? 'Login to Luminate Ads' : 'Create your Luminate Ads account'}</h2>
-            <form onSubmit={submit}>
-              {mode === 'register' && (
-                <>
-                  <input required placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                  <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                  <input required placeholder="Mobile number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
-                  <input placeholder="Referral code" value={form.referralCode} onChange={(e) => setForm({ ...form, referralCode: e.target.value })} />
-                  <p className="muted">Package selection is available after registration.</p>
-                </>
-              )}
-              {mode === 'login' && (
-                <input required placeholder="Email or mobile" value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} />
-              )}
-              <input required={mode === 'login'} type="password" placeholder={mode === 'login' ? 'Password' : 'Password optional'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-              {error && <p className="error">{error}</p>}
-              <button className="primary full" disabled={busy}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register & Continue'}</button>
-            </form>
-            <button className="text-link" type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
-              {mode === 'login' ? 'New member registration' : 'Already registered? Login'}
-            </button>
-            <div className="otp-panel">
-              <div>
-                <h3>OTP Login</h3>
-                <p className="muted">Use mobile OTP without disturbing password login.</p>
-              </div>
-              <input placeholder="Mobile number" value={form.mobile || form.identifier} onChange={(e) => setForm({ ...form, mobile: e.target.value, identifier: e.target.value })} />
-              <button className="ghost full" type="button" disabled={busy} onClick={sendOtp}>{otpSent ? 'Resend OTP' : 'Generate OTP'}</button>
-              {otpSent && (
-                <>
-                  <input placeholder="Enter OTP" value={form.otp} onChange={(e) => setForm({ ...form, otp: e.target.value })} />
-                  <button className="primary full" type="button" disabled={busy} onClick={verifyOtpLogin}>Verify & Continue</button>
-                </>
-              )}
-            </div>
-          </div>
+        <img className="auth-simple-logo" src={logo} alt="Luminate Ads" />
+        <div className="auth-tabs">
+          <button className={mode === 'register' ? 'active' : ''} type="button" onClick={() => { setMode('register'); setError(''); }}>Register</button>
+          <button className={mode === 'login' ? 'active' : ''} type="button" onClick={() => { setMode('login'); setError(''); }}>Login</button>
         </div>
+        <span className="section-kicker">{mode === 'login' ? 'Member Login' : 'Member Registration'}</span>
+        <h2>{mode === 'login' ? 'Login to your dashboard' : 'Create your Luminate Ads account'}</h2>
+        <form onSubmit={submit}>
+          {mode === 'register' && (
+            <>
+              <input required placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <input required placeholder="Mobile number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+              <input placeholder="Referral code" value={form.referralCode} onChange={(e) => setForm({ ...form, referralCode: e.target.value })} />
+            </>
+          )}
+          {mode === 'login' && (
+            <input required placeholder="Email or mobile" value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} />
+          )}
+          <input required type="password" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          {error && <p className="error">{error}</p>}
+          <button className="primary full" disabled={busy}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}</button>
+        </form>
       </div>
     </div>
   );
