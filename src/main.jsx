@@ -80,6 +80,43 @@ api.interceptors.response.use(
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function taskProgressKey(userId, taskId, date = todayKey()) {
+  return `luminateads_task_progress_${userId || 'guest'}_${date}_${taskId}`;
+}
+
+function readTaskProgress(userId, taskId, date = todayKey()) {
+  try {
+    return JSON.parse(localStorage.getItem(taskProgressKey(userId, taskId, date)) || '{"percent":0,"seconds":0}');
+  } catch {
+    return { percent: 0, seconds: 0 };
+  }
+}
+
+function saveTaskProgress(userId, taskId, progress) {
+  if (!userId || !taskId) return;
+  const current = readTaskProgress(userId, taskId);
+  const next = {
+    percent: Math.max(Number(current.percent || 0), Number(progress.percent || 0)),
+    seconds: Math.max(Number(current.seconds || 0), Number(progress.seconds || 0)),
+    updatedAt: new Date().toISOString()
+  };
+  localStorage.setItem(taskProgressKey(userId, taskId), JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent('luminateads-task-progress', { detail: { userId, taskId, progress: next } }));
+}
+
+function getTaskProgressSummary(userId, tasks = []) {
+  const rows = tasks.map((task) => ({ task, progress: readTaskProgress(userId, task.id) }));
+  const total = rows.length;
+  const completed = rows.filter((row) => Number(row.progress.percent || 0) >= 100).length;
+  const pending = Math.max(total - completed, 0);
+  const average = total ? Math.round(rows.reduce((sum, row) => sum + Number(row.progress.percent || 0), 0) / total) : 0;
+  return { rows, total, completed, pending, average };
+}
+
 const demoPackages = [
   { id: 'pkg-1', name: '₹999 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 15, dailyAdsRequired: 15, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
   { id: 'pkg-2', name: '₹1,999 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 30, dailyAdsRequired: 30, dailyWorkMinutes: 60, monthlyGenerationAmount: 500, dailyDebitAmount: 16.67, freeBannerCount: 2 },
@@ -321,9 +358,9 @@ function App() {
         {active === 'home' && <HomePage setActive={setActive} setAuthOpen={setAuthOpen} banners={publicHome.data.banners || []} />}
         {active === 'services' && <ServicesPage />}
         {active === 'packages' && <PackagesPage packages={packages.data} setAuthOpen={setAuthOpen} isLoggedIn={isLoggedIn} setPaymentPackage={setPaymentPackage} />}
-        {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} />}
+        {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} tasks={tasks.data} />}
         {active === 'profile' && <ProfilePage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} onUserUpdate={updateStoredUser} />}
-        {active === 'tasks' && <TasksPage tasks={tasks.data} packages={packages.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
+        {active === 'tasks' && <TasksPage tasks={tasks.data} packages={packages.data} user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
         {active === 'wallet' && <WalletPage wallet={wallet.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
         {active === 'support' && <SupportPage isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
       </main>
@@ -622,7 +659,16 @@ function ReferralIncomePlan() {
   );
 }
 
-function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet }) {
+function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet, tasks = [] }) {
+  const [progressVersion, setProgressVersion] = useState(0);
+  useEffect(() => {
+    function refreshProgress() {
+      setProgressVersion((value) => value + 1);
+    }
+    window.addEventListener('luminateads-task-progress', refreshProgress);
+    return () => window.removeEventListener('luminateads-task-progress', refreshProgress);
+  }, []);
+
   if (!isLoggedIn) return <Gate title="Your personal space is waiting." text="Login or register to see your plan, invite code, activities, rewards, and support in one place." action={setAuthOpen} />;
 
   const stats = [
@@ -631,6 +677,8 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
     ['Invite Code', user?.referralCode || 'Pending', TreePine],
     ['Current Plan', user?.package?.name || 'Not selected', Layers3]
   ];
+  const progressSummary = getTaskProgressSummary(user?.id, tasks, progressVersion);
+  const watchedRows = progressSummary.rows.filter((row) => Number(row.progress.percent || 0) > 0);
   const gettingStarted = [
     ['Profile completed', Boolean(user?.name && user?.mobile)],
     ['Plan selected', Boolean(user?.packageId || user?.package)],
@@ -684,6 +732,33 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
               {item}
             </div>
           ))}
+        </article>
+        <article className="panel task-summary-panel">
+          <h3>Today’s Watch Progress</h3>
+          <div className="task-summary-stats">
+            <div><strong>{progressSummary.completed}</strong><span>Completed</span></div>
+            <div><strong>{progressSummary.pending}</strong><span>Pending</span></div>
+            <div><strong>{progressSummary.average}%</strong><span>Average watched</span></div>
+          </div>
+          <div className="progress-track"><span style={{ width: `${progressSummary.average}%` }} /></div>
+          {progressSummary.total ? (
+            <p className="muted">
+              You watched {progressSummary.completed} of {progressSummary.total} videos completely. {progressSummary.pending ? `Continue the remaining ${progressSummary.pending} task${progressSummary.pending === 1 ? '' : 's'} to close today’s activity.` : 'Today’s activity is complete.'}
+            </p>
+          ) : (
+            <p className="muted">No active videos are available for today yet.</p>
+          )}
+          {watchedRows.length > 0 && (
+            <div className="task-summary-list">
+              {watchedRows.slice(0, 4).map(({ task, progress }) => (
+                <div key={task.id}>
+                  <span>{task.title}</span>
+                  <strong>{Number(progress.percent || 0)}%</strong>
+                </div>
+              ))}
+            </div>
+          )}
+          <button className="ghost" onClick={() => setActive('tasks')}>Continue Today’s Activities</button>
         </article>
       </div>
     </section>
@@ -919,12 +994,22 @@ function HierarchyTree({ node, root = false }) {
   );
 }
 
-function TasksPage({ tasks, packages, isLoggedIn, setAuthOpen }) {
+function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
   const [selectedPlan, setSelectedPlan] = useState(packages[0]?.id || '');
+  const [progressVersion, setProgressVersion] = useState(0);
+  useEffect(() => {
+    function refreshProgress() {
+      setProgressVersion((value) => value + 1);
+    }
+    window.addEventListener('luminateads-task-progress', refreshProgress);
+    return () => window.removeEventListener('luminateads-task-progress', refreshProgress);
+  }, []);
+
   if (!isLoggedIn) return <Gate title="Daily ad activities unlock payouts." text="Login to see date-wise assignments, complete daily ads, and submit proof with remarks." action={setAuthOpen} />;
   const calendar = getMonthlyCalendar();
   const activePlan = packages.find((pkg) => pkg.id === selectedPlan) || packages[0];
   const planLabels = ['A Plan', 'B Plan', 'C Plan'];
+  const progressSummary = getTaskProgressSummary(user?.id, tasks, progressVersion);
 
   return (
     <section className="section">
@@ -939,6 +1024,17 @@ function TasksPage({ tasks, packages, isLoggedIn, setAuthOpen }) {
         ))}
       </div>
       {activePlan && <p className="muted task-plan-note">Selected view: {activePlan.name}. Admin uploaded videos appear below.</p>}
+      <div className="daily-progress-panel">
+        <div>
+          <strong>{progressSummary.completed}/{progressSummary.total}</strong>
+          <span>videos completed today</span>
+        </div>
+        <div>
+          <strong>{progressSummary.average}%</strong>
+          <span>average watched</span>
+        </div>
+        <p>{progressSummary.pending ? `${progressSummary.pending} video${progressSummary.pending === 1 ? '' : 's'} pending. Continue watching the remaining tasks to close today’s activity.` : 'All available videos are completed for today.'}</p>
+      </div>
       <div className="calendar-shell">
         <div className="calendar-head">
           <strong>{calendar.title}</strong>
@@ -964,18 +1060,22 @@ function TasksPage({ tasks, packages, isLoggedIn, setAuthOpen }) {
       <p className="muted task-policy">Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.</p>
       <div className="task-list">
         {tasks.length ? tasks.map((task) => (
-          <TaskCard task={task} key={task.id} />
+          <TaskCard task={task} userId={user?.id} key={task.id} />
         )) : <p className="muted">No active tasks are available right now. New ad tasks posted by admin will appear here automatically.</p>}
       </div>
     </section>
   );
 }
 
-function TaskCard({ task }) {
-  const [progress, setProgress] = useState(0);
+function TaskCard({ task, userId }) {
+  const storedProgress = readTaskProgress(userId, task.id);
+  const [progress, setProgress] = useState(Number(storedProgress.percent || 0));
   const [watching, setWatching] = useState(false);
   const youtubeMountRef = useRef(null);
   const youtubePlayerRef = useRef(null);
+  const directVideoRef = useRef(null);
+  const restoredDirectRef = useRef(false);
+  const restoredYouTubeRef = useRef(false);
   const videoUrl = task.videoUrl || task.mediaUrl || task.taskUrl || '';
   const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(videoUrl);
   const embedUrl = getEmbedUrl(videoUrl);
@@ -993,8 +1093,10 @@ function TaskCard({ task }) {
       if (!player?.getDuration || !player?.getCurrentTime) return;
       const duration = player.getDuration();
       if (!duration) return;
-      const watched = Math.min(100, Math.round((player.getCurrentTime() / duration) * 100));
+      const currentTime = player.getCurrentTime();
+      const watched = Math.min(100, Math.round((currentTime / duration) * 100));
       setProgress(watched);
+      saveTaskProgress(userId, task.id, { percent: watched, seconds: currentTime });
       if (watched >= 100) clearInterval(progressTimer);
     }
 
@@ -1004,6 +1106,14 @@ function TaskCard({ task }) {
         videoId: youtubeVideoId,
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
+          onReady: (event) => {
+            const saved = readTaskProgress(userId, task.id);
+            if (!restoredYouTubeRef.current && Number(saved.seconds || 0) > 0) {
+              restoredYouTubeRef.current = true;
+              event.target.seekTo(Number(saved.seconds), true);
+              setProgress(Number(saved.percent || 0));
+            }
+          },
           onStateChange: (event) => {
             if (event.data === window.YT.PlayerState.PLAYING) {
               setWatching(true);
@@ -1016,6 +1126,7 @@ function TaskCard({ task }) {
             }
             if (event.data === window.YT.PlayerState.ENDED) {
               setProgress(100);
+              saveTaskProgress(userId, task.id, { percent: 100, seconds: event.target?.getDuration?.() || readTaskProgress(userId, task.id).seconds || 0 });
               clearInterval(progressTimer);
             }
           }
@@ -1044,7 +1155,7 @@ function TaskCard({ task }) {
       youtubePlayerRef.current?.destroy?.();
       youtubePlayerRef.current = null;
     };
-  }, [canTrackYouTube, embedUrl, youtubeVideoId]);
+  }, [canTrackYouTube, embedUrl, task.id, userId, youtubeVideoId]);
 
   useEffect(() => {
     if (!watching || isDirectVideo || canTrackYouTube) return undefined;
@@ -1054,16 +1165,30 @@ function TaskCard({ task }) {
           clearInterval(timer);
           return 100;
         }
-        return Math.min(100, value + 2);
+        const next = Math.min(100, value + 2);
+        saveTaskProgress(userId, task.id, { percent: next, seconds: readTaskProgress(userId, task.id).seconds || 0 });
+        return next;
       });
     }, 900);
     return () => clearInterval(timer);
-  }, [watching, isDirectVideo, canTrackYouTube]);
+  }, [watching, isDirectVideo, canTrackYouTube, task.id, userId]);
 
   function onVideoProgress(event) {
     const video = event.currentTarget;
     if (!video.duration) return;
-    setProgress(Math.min(100, Math.round((video.currentTime / video.duration) * 100)));
+    const watched = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+    setProgress(watched);
+    saveTaskProgress(userId, task.id, { percent: watched, seconds: video.currentTime });
+  }
+
+  function restoreDirectVideo(event) {
+    if (restoredDirectRef.current) return;
+    const saved = readTaskProgress(userId, task.id);
+    if (Number(saved.seconds || 0) > 0 && event.currentTarget.duration && Number(saved.seconds) < event.currentTarget.duration) {
+      event.currentTarget.currentTime = Number(saved.seconds);
+      setProgress(Number(saved.percent || 0));
+    }
+    restoredDirectRef.current = true;
   }
 
   return (
@@ -1078,7 +1203,10 @@ function TaskCard({ task }) {
                 youtubePlayerRef.current?.playVideo?.();
               }}>
                 {isDirectVideo ? (
-                  <video src={videoUrl} controls onTimeUpdate={onVideoProgress} onPlay={() => setWatching(true)} onEnded={() => setProgress(100)} />
+                  <video ref={directVideoRef} src={videoUrl} controls onLoadedMetadata={restoreDirectVideo} onTimeUpdate={onVideoProgress} onPlay={() => setWatching(true)} onEnded={(event) => {
+                    setProgress(100);
+                    saveTaskProgress(userId, task.id, { percent: 100, seconds: event.currentTarget.duration || readTaskProgress(userId, task.id).seconds || 0 });
+                  }} />
                 ) : embedUrl && canTrackYouTube ? (
                   <div className="youtube-frame" ref={youtubeMountRef} />
                 ) : embedUrl ? (

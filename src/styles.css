@@ -924,6 +924,74 @@ button {
   max-width: 880px;
 }
 
+.daily-progress-panel,
+.task-summary-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.daily-progress-panel {
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--mint);
+}
+
+.daily-progress-panel div,
+.task-summary-stats div {
+  display: grid;
+  gap: 2px;
+}
+
+.daily-progress-panel strong,
+.task-summary-stats strong {
+  color: var(--ink);
+  font-size: 1.35rem;
+}
+
+.daily-progress-panel span,
+.task-summary-stats span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.daily-progress-panel p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.task-summary-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.task-summary-list {
+  display: grid;
+  gap: 8px;
+}
+
+.task-summary-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.task-summary-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .video-player {
   width: 100%;
   margin: 14px 0 10px;
@@ -1810,6 +1878,11 @@ select:focus {
   .calendar-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .daily-progress-panel,
+  .task-summary-stats {
+    grid-template-columns: 1fr;
   }
 
   .calendar-weekdays,
