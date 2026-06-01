@@ -1027,10 +1027,18 @@ function HierarchyTree({ node, root = false }) {
 }
 
 function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
-  const [selectedPlan, setSelectedPlan] = useState(packages[0]?.id || '');
+  const userPlanId = user?.packageId || user?.package?.id || '';
+  const [selectedPlan, setSelectedPlan] = useState(userPlanId || packages[0]?.id || '');
   const [progressVersion, setProgressVersion] = useState(0);
   const [activeTaskId, setActiveTaskId] = useState('');
   const [watchLockMessage, setWatchLockMessage] = useState('');
+  useEffect(() => {
+    if (userPlanId && userPlanId !== selectedPlan) {
+      setSelectedPlan(userPlanId);
+      return;
+    }
+    if (!selectedPlan && packages[0]?.id) setSelectedPlan(packages[0].id);
+  }, [packages, selectedPlan, userPlanId]);
   useEffect(() => {
     function refreshProgress() {
       setProgressVersion((value) => value + 1);
