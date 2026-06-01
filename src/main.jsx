@@ -276,6 +276,19 @@ function App() {
     return () => window.removeEventListener('luminateads-session-expired', handleExpiredSession);
   }, []);
 
+  useEffect(() => {
+    if (!token || !['portal', 'profile', 'tasks', 'wallet'].includes(active)) return undefined;
+    let mounted = true;
+    api.get('/auth/profile')
+      .then((res) => {
+        if (mounted && res.data.user) updateStoredUser(res.data.user);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [token, active]);
+
   return (
     <div className="app">
       <header className="topbar">
@@ -618,6 +631,12 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
     ['Invite Code', user?.referralCode || 'Pending', TreePine],
     ['Current Plan', user?.package?.name || 'Not selected', Layers3]
   ];
+  const gettingStarted = [
+    ['Profile completed', Boolean(user?.name && user?.mobile)],
+    ['Plan selected', Boolean(user?.packageId || user?.package)],
+    ['Account activated', user?.status === 'active'],
+    ['Bank details added', Boolean(user?.bankDetail?.upiId || user?.bankDetail?.accountNumber || user?.upiId)]
+  ];
   const code = user?.referralCode || '';
   const link = referralLink(code);
 
@@ -659,9 +678,9 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet 
         </article>
         <article className="panel">
           <h3>Getting Started</h3>
-          {['Profile completed', 'Plan selected', 'Account activated', 'Bank details added'].map((item, index) => (
+          {gettingStarted.map(([item, done]) => (
             <div className="check-row" key={item}>
-              <span className={index < 2 ? 'done' : ''}><CheckCircle2 size={16} /></span>
+              <span className={done ? 'done' : ''}><CheckCircle2 size={16} /></span>
               {item}
             </div>
           ))}
