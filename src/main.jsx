@@ -239,6 +239,20 @@ function perAdValue(pkg) {
   return ads ? dailyIncome(pkg) / ads : 0;
 }
 
+function todayBalance(walletData) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (walletData?.transactions || [])
+    .filter((tx) => {
+      const createdDate = String(tx.createdAt || tx.updatedAt || '').slice(0, 10);
+      return createdDate === today && tx.type === 'credit';
+    })
+    .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+}
+
+function currentUserLevel(user) {
+  return user?.currentLevel || user?.levelName || user?.rank || user?.level || 'Beginner';
+}
+
 const commissionLevels = [
   { level: 1, percent: 10, amount999: 99.9, label: 'Direct Referral' },
   { level: 2, percent: 5, amount999: 49.95, label: 'Level 2 Team' },
@@ -685,10 +699,10 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
   if (!isLoggedIn) return <Gate title="Your personal space is waiting." text="Login or register to see your plan, invite code, activities, rewards, and support in one place." action={setAuthOpen} />;
 
   const stats = [
-    ['Available Rewards', money(wallet.wallet?.availableBalance), Wallet],
-    ['Total Rewards', money(wallet.wallet?.totalEarned), BadgeIndianRupee],
+    ['Available Balance', money(wallet.wallet?.availableBalance), Wallet],
+    ['Today Balance', money(todayBalance(wallet)), BadgeIndianRupee],
     ['Invite Code', user?.referralCode || 'Pending', TreePine],
-    ['Current Plan', user?.package?.name || 'Not selected', Layers3]
+    ['Current Level', currentUserLevel(user), Layers3]
   ];
   const progressSummary = getTaskProgressSummary(user?.id, tasks, progressVersion);
   const watchedRows = progressSummary.rows.filter((row) => Number(row.progress.percent || 0) > 0);
