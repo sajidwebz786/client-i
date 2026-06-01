@@ -965,6 +965,16 @@ button {
   line-height: 1.45;
 }
 
+.watch-lock-message {
+  margin: 12px 0 0;
+  padding: 11px 14px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  color: #7c4a03;
+  font-weight: 800;
+}
+
 .task-summary-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1001,6 +1011,27 @@ button {
   border: 1px solid var(--line);
   aspect-ratio: 16 / 9;
   cursor: pointer;
+  position: relative;
+}
+
+.video-player.locked iframe,
+.video-player.locked video,
+.video-player.locked .youtube-frame {
+  pointer-events: none;
+  filter: grayscale(0.25);
+}
+
+.video-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-weight: 900;
+  text-align: center;
 }
 
 .video-player video,

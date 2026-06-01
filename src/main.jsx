@@ -1029,6 +1029,8 @@ function HierarchyTree({ node, root = false }) {
 function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
   const [selectedPlan, setSelectedPlan] = useState(packages[0]?.id || '');
   const [progressVersion, setProgressVersion] = useState(0);
+  const [activeTaskId, setActiveTaskId] = useState('');
+  const [watchLockMessage, setWatchLockMessage] = useState('');
   useEffect(() => {
     function refreshProgress() {
       setProgressVersion((value) => value + 1);
@@ -1036,12 +1038,22 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
     window.addEventListener('luminateads-task-progress', refreshProgress);
     return () => window.removeEventListener('luminateads-task-progress', refreshProgress);
   }, []);
+  const progressSummary = getTaskProgressSummary(user?.id, tasks, progressVersion);
+  const inProgressTask = progressSummary.rows.find((row) => Number(row.progress.percent || 0) > 0 && Number(row.progress.percent || 0) < 100);
+  useEffect(() => {
+    if (!activeTaskId && inProgressTask?.task?.id) {
+      setActiveTaskId(inProgressTask.task.id);
+      return;
+    }
+    if (!activeTaskId) return;
+    const activeProgress = progressSummary.rows.find((row) => row.task.id === activeTaskId)?.progress;
+    if (Number(activeProgress?.percent || 0) >= 100) setActiveTaskId('');
+  }, [activeTaskId, inProgressTask?.task?.id, progressSummary.rows]);
 
   if (!isLoggedIn) return <Gate title="Daily ad activities unlock payouts." text="Login to see date-wise assignments, complete daily ads, and submit proof with remarks." action={setAuthOpen} />;
   const calendar = getMonthlyCalendar();
   const activePlan = packages.find((pkg) => pkg.id === selectedPlan) || packages[0];
   const planLabels = ['A Plan', 'B Plan', 'C Plan'];
-  const progressSummary = getTaskProgressSummary(user?.id, tasks, progressVersion);
 
   return (
     <section className="section">
@@ -1067,6 +1079,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
         </div>
         <p>{progressSummary.pending ? `${progressSummary.pending} video${progressSummary.pending === 1 ? '' : 's'} pending. Continue watching the remaining tasks to close today’s activity.` : 'All available videos are completed for today.'}</p>
       </div>
+      {watchLockMessage && <p className="watch-lock-message">{watchLockMessage}</p>}
       <div className="calendar-shell">
         <div className="calendar-head">
           <strong>{calendar.title}</strong>
@@ -1092,14 +1105,21 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       <p className="muted task-policy">Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.</p>
       <div className="task-list">
         {tasks.length ? tasks.map((task) => (
-          <TaskCard task={task} userId={user?.id} key={task.id} />
+          <TaskCard
+            task={task}
+            userId={user?.id}
+            key={task.id}
+            activeTaskId={activeTaskId}
+            setActiveTaskId={setActiveTaskId}
+            setWatchLockMessage={setWatchLockMessage}
+          />
         )) : <p className="muted">No active tasks are available right now. New ad tasks posted by admin will appear here automatically.</p>}
       </div>
     </section>
   );
 }
 
-function TaskCard({ task, userId }) {
+function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMessage }) {
   const storedProgress = readTaskProgress(userId, task);
   const [progress, setProgress] = useState(Number(storedProgress.percent || 0));
   const [watching, setWatching] = useState(false);
@@ -1108,12 +1128,40 @@ function TaskCard({ task, userId }) {
   const directVideoRef = useRef(null);
   const restoredDirectRef = useRef(false);
   const restoredYouTubeRef = useRef(false);
+  const activeTaskIdRef = useRef(activeTaskId);
   const videoUrl = task.videoUrl || task.mediaUrl || task.taskUrl || '';
   const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(videoUrl);
   const embedUrl = getEmbedUrl(videoUrl);
   const isYouTubeVideo = isYouTubeUrl(videoUrl);
   const youtubeVideoId = getYouTubeId(videoUrl);
   const canTrackYouTube = isYouTubeVideo && Boolean(youtubeVideoId);
+  const isCompleted = progress >= 100;
+  const isLocked = Boolean(activeTaskId && activeTaskId !== task.id && !isCompleted);
+
+  useEffect(() => {
+    activeTaskIdRef.current = activeTaskId;
+  }, [activeTaskId]);
+
+  function requestWatchStart() {
+    if (isCompleted) {
+      setWatchLockMessage?.('');
+      return true;
+    }
+    if (activeTaskIdRef.current && activeTaskIdRef.current !== task.id) {
+      setWatchLockMessage?.('Finish the video already in progress before starting another task.');
+      return false;
+    }
+    setActiveTaskId?.(task.id);
+    setWatchLockMessage?.(`Continue "${task.title}" until it is fully watched. Other videos stay locked for focus.`);
+    return true;
+  }
+
+  function completeWatch(seconds = 0) {
+    setProgress(100);
+    saveTaskProgress(userId, task.id, { percent: 100, seconds });
+    setActiveTaskId?.('');
+    setWatchLockMessage?.(`"${task.title}" is completed. You can start the next video now.`);
+  }
 
   useEffect(() => {
     if (!embedUrl || !canTrackYouTube || !youtubeMountRef.current) return undefined;
@@ -1148,6 +1196,10 @@ function TaskCard({ task, userId }) {
           },
           onStateChange: (event) => {
             if (event.data === window.YT.PlayerState.PLAYING) {
+              if (!requestWatchStart()) {
+                event.target.pauseVideo?.();
+                return;
+              }
               setWatching(true);
               clearInterval(progressTimer);
               progressTimer = setInterval(updateProgressFromPlayer, 500);
@@ -1157,8 +1209,7 @@ function TaskCard({ task, userId }) {
               clearInterval(progressTimer);
             }
             if (event.data === window.YT.PlayerState.ENDED) {
-              setProgress(100);
-              saveTaskProgress(userId, task.id, { percent: 100, seconds: event.target?.getDuration?.() || readTaskProgress(userId, task).seconds || 0 });
+              completeWatch(event.target?.getDuration?.() || readTaskProgress(userId, task).seconds || 0);
               clearInterval(progressTimer);
             }
           }
@@ -1187,7 +1238,7 @@ function TaskCard({ task, userId }) {
       youtubePlayerRef.current?.destroy?.();
       youtubePlayerRef.current = null;
     };
-  }, [canTrackYouTube, embedUrl, task.id, userId, youtubeVideoId]);
+  }, [canTrackYouTube, embedUrl, task.id, task.title, userId, youtubeVideoId]);
 
   useEffect(() => {
     if (!watching || isDirectVideo || canTrackYouTube) return undefined;
@@ -1213,6 +1264,14 @@ function TaskCard({ task, userId }) {
     saveTaskProgress(userId, task.id, { percent: watched, seconds: video.currentTime });
   }
 
+  function onDirectVideoPlay(event) {
+    if (!requestWatchStart()) {
+      event.currentTarget.pause();
+      return;
+    }
+    setWatching(true);
+  }
+
   function restoreDirectVideo(event) {
     if (restoredDirectRef.current) return;
     const saved = readTaskProgress(userId, task);
@@ -1230,14 +1289,15 @@ function TaskCard({ task, userId }) {
               <strong>{task.title}</strong>
               <p>{task.description}</p>
               <small>{task.platform} · status {progress >= 100 ? 'completed' : progress > 0 ? 'in progress' : 'pending'}</small>
-              <div className="video-player" onClick={() => {
+              <div className={`video-player ${isLocked ? 'locked' : ''}`} onClick={() => {
+                if (!requestWatchStart()) return;
                 setWatching(true);
                 youtubePlayerRef.current?.playVideo?.();
               }}>
+                {isLocked && <div className="video-lock-overlay">Finish the current video first</div>}
                 {isDirectVideo ? (
-                  <video ref={directVideoRef} src={videoUrl} controls onLoadedMetadata={restoreDirectVideo} onTimeUpdate={onVideoProgress} onPlay={() => setWatching(true)} onEnded={(event) => {
-                    setProgress(100);
-                    saveTaskProgress(userId, task.id, { percent: 100, seconds: event.currentTarget.duration || readTaskProgress(userId, task).seconds || 0 });
+                  <video ref={directVideoRef} src={videoUrl} controls onLoadedMetadata={restoreDirectVideo} onTimeUpdate={onVideoProgress} onPlay={onDirectVideoPlay} onEnded={(event) => {
+                    completeWatch(event.currentTarget.duration || readTaskProgress(userId, task).seconds || 0);
                   }} />
                 ) : embedUrl && canTrackYouTube ? (
                   <div className="youtube-frame" ref={youtubeMountRef} />
