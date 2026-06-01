@@ -667,25 +667,6 @@ function ReferralIncomePlan() {
             </div>
           ))}
         </article>
-        <article className="panel commission-table">
-          <h3>Level Wise Commission Structure</h3>
-          <div className="commission-header">
-            <span>Level</span>
-            <span>Commission</span>
-            <span>From ₹999</span>
-          </div>
-          {commissionLevels.map((item) => (
-            <div className="commission-row" key={item.level}>
-              <span>Level {item.level}</span>
-              <strong>{item.percent}%</strong>
-              <strong>{money(item.amount999)}</strong>
-            </div>
-          ))}
-          <div className="commission-total">
-            <span>Total max earning up to level 10</span>
-            <strong>25% · ₹249.75</strong>
-          </div>
-        </article>
       </div>
     </div>
   );
