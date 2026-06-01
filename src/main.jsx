@@ -1182,7 +1182,10 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
 
     function createPlayer() {
       if (cancelled || !window.YT?.Player || !youtubeMountRef.current) return;
-      youtubePlayerRef.current = new window.YT.Player(youtubeMountRef.current, {
+      youtubeMountRef.current.innerHTML = '';
+      const playerElement = document.createElement('div');
+      youtubeMountRef.current.appendChild(playerElement);
+      youtubePlayerRef.current = new window.YT.Player(playerElement, {
         videoId: youtubeVideoId,
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
@@ -1235,8 +1238,13 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
     return () => {
       cancelled = true;
       clearInterval(progressTimer);
-      youtubePlayerRef.current?.destroy?.();
+      try {
+        youtubePlayerRef.current?.destroy?.();
+      } catch {
+        // YouTube may already detach its iframe while navigating away.
+      }
       youtubePlayerRef.current = null;
+      if (youtubeMountRef.current) youtubeMountRef.current.innerHTML = '';
     };
   }, [canTrackYouTube, embedUrl, task.id, task.title, userId, youtubeVideoId]);
 
