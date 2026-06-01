@@ -79,20 +79,35 @@ api.interceptors.response.use(
 );
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
+const progressSyncCache = new Map();
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function taskProgressKey(userId, taskId, date = todayKey()) {
+function taskIdOf(taskOrId) {
+  return typeof taskOrId === 'object' ? taskOrId?.id : taskOrId;
+}
+
+function taskProgressKey(userId, taskOrId, date = todayKey()) {
+  const taskId = taskIdOf(taskOrId);
   return `luminateads_task_progress_${userId || 'guest'}_${date}_${taskId}`;
 }
 
-function readTaskProgress(userId, taskId, date = todayKey()) {
+function readTaskProgress(userId, taskOrId, date = todayKey()) {
+  const serverProgress = typeof taskOrId === 'object' ? taskOrId?.progress : null;
+  const serverPercent = Number(serverProgress?.percent || 0);
+  const serverSeconds = Number(serverProgress?.seconds || 0);
   try {
-    return JSON.parse(localStorage.getItem(taskProgressKey(userId, taskId, date)) || '{"percent":0,"seconds":0}');
+    const localProgress = JSON.parse(localStorage.getItem(taskProgressKey(userId, taskOrId, date)) || '{"percent":0,"seconds":0}');
+    return {
+      ...serverProgress,
+      ...localProgress,
+      percent: Math.max(serverPercent, Number(localProgress.percent || 0)),
+      seconds: Math.max(serverSeconds, Number(localProgress.seconds || 0))
+    };
   } catch {
-    return { percent: 0, seconds: 0 };
+    return { ...(serverProgress || {}), percent: serverPercent, seconds: serverSeconds };
   }
 }
 
@@ -106,10 +121,27 @@ function saveTaskProgress(userId, taskId, progress) {
   };
   localStorage.setItem(taskProgressKey(userId, taskId), JSON.stringify(next));
   window.dispatchEvent(new CustomEvent('luminateads-task-progress', { detail: { userId, taskId, progress: next } }));
+  syncTaskProgress(userId, taskId, next);
+}
+
+function syncTaskProgress(userId, taskId, progress, date = todayKey()) {
+  const key = `${userId}_${taskId}_${date}`;
+  const last = progressSyncCache.get(key);
+  const now = Date.now();
+  const percent = Number(progress.percent || 0);
+  if (percent < 100 && last && now - last.time < 5000 && percent - last.percent < 5) return;
+  progressSyncCache.set(key, { time: now, percent });
+  api.put(`/tasks/${taskId}/progress`, {
+    percent,
+    seconds: Number(progress.seconds || 0),
+    taskDate: date
+  }).catch(() => {
+    progressSyncCache.delete(key);
+  });
 }
 
 function getTaskProgressSummary(userId, tasks = []) {
-  const rows = tasks.map((task) => ({ task, progress: readTaskProgress(userId, task.id) }));
+  const rows = tasks.map((task) => ({ task, progress: readTaskProgress(userId, task) }));
   const total = rows.length;
   const completed = rows.filter((row) => Number(row.progress.percent || 0) >= 100).length;
   const pending = Math.max(total - completed, 0);
@@ -1068,7 +1100,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
 }
 
 function TaskCard({ task, userId }) {
-  const storedProgress = readTaskProgress(userId, task.id);
+  const storedProgress = readTaskProgress(userId, task);
   const [progress, setProgress] = useState(Number(storedProgress.percent || 0));
   const [watching, setWatching] = useState(false);
   const youtubeMountRef = useRef(null);
@@ -1107,7 +1139,7 @@ function TaskCard({ task, userId }) {
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
           onReady: (event) => {
-            const saved = readTaskProgress(userId, task.id);
+            const saved = readTaskProgress(userId, task);
             if (!restoredYouTubeRef.current && Number(saved.seconds || 0) > 0) {
               restoredYouTubeRef.current = true;
               event.target.seekTo(Number(saved.seconds), true);
@@ -1126,7 +1158,7 @@ function TaskCard({ task, userId }) {
             }
             if (event.data === window.YT.PlayerState.ENDED) {
               setProgress(100);
-              saveTaskProgress(userId, task.id, { percent: 100, seconds: event.target?.getDuration?.() || readTaskProgress(userId, task.id).seconds || 0 });
+              saveTaskProgress(userId, task.id, { percent: 100, seconds: event.target?.getDuration?.() || readTaskProgress(userId, task).seconds || 0 });
               clearInterval(progressTimer);
             }
           }
@@ -1166,7 +1198,7 @@ function TaskCard({ task, userId }) {
           return 100;
         }
         const next = Math.min(100, value + 2);
-        saveTaskProgress(userId, task.id, { percent: next, seconds: readTaskProgress(userId, task.id).seconds || 0 });
+        saveTaskProgress(userId, task.id, { percent: next, seconds: readTaskProgress(userId, task).seconds || 0 });
         return next;
       });
     }, 900);
@@ -1183,7 +1215,7 @@ function TaskCard({ task, userId }) {
 
   function restoreDirectVideo(event) {
     if (restoredDirectRef.current) return;
-    const saved = readTaskProgress(userId, task.id);
+    const saved = readTaskProgress(userId, task);
     if (Number(saved.seconds || 0) > 0 && event.currentTarget.duration && Number(saved.seconds) < event.currentTarget.duration) {
       event.currentTarget.currentTime = Number(saved.seconds);
       setProgress(Number(saved.percent || 0));
@@ -1205,7 +1237,7 @@ function TaskCard({ task, userId }) {
                 {isDirectVideo ? (
                   <video ref={directVideoRef} src={videoUrl} controls onLoadedMetadata={restoreDirectVideo} onTimeUpdate={onVideoProgress} onPlay={() => setWatching(true)} onEnded={(event) => {
                     setProgress(100);
-                    saveTaskProgress(userId, task.id, { percent: 100, seconds: event.currentTarget.duration || readTaskProgress(userId, task.id).seconds || 0 });
+                    saveTaskProgress(userId, task.id, { percent: 100, seconds: event.currentTarget.duration || readTaskProgress(userId, task).seconds || 0 });
                   }} />
                 ) : embedUrl && canTrackYouTube ? (
                   <div className="youtube-frame" ref={youtubeMountRef} />
