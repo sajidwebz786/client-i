@@ -679,6 +679,40 @@ button {
   gap: 18px;
 }
 
+.profile-level-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1.15fr);
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.level-table {
+  display: grid;
+  gap: 0;
+}
+
+.level-table-head,
+.level-table-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.level-table-head {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.level-table-row strong {
+  color: var(--green-dark);
+}
+
 .profile-hierarchy {
   margin-top: 34px;
 }
@@ -1188,6 +1222,23 @@ code {
   gap: 14px;
 }
 
+.task-sequence-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(15, 139, 109, 0.28);
+  border-radius: 8px;
+  background: var(--mint);
+}
+
+.task-sequence-panel span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .task-card {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -1239,6 +1290,19 @@ code {
 .wallet-layout {
   display: grid;
   gap: 18px;
+}
+
+.wallet-layout .panel,
+.withdraw-history-panel {
+  min-height: 220px;
+}
+
+.recent-transactions-panel {
+  margin-top: 18px;
+}
+
+.form-grid.one {
+  grid-template-columns: 1fr;
 }
 
 .balance-panel {
@@ -1883,6 +1947,7 @@ select:focus {
     .wallet-layout,
     .support-grid,
     .profile-grid,
+    .profile-level-panel,
     .hierarchy-grid,
     .income-layout,
     .split,
@@ -1931,6 +1996,11 @@ select:focus {
 
   .task-card {
     grid-template-columns: 1fr;
+  }
+
+  .task-sequence-panel {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .task-actions {

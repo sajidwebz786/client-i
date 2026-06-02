@@ -250,7 +250,8 @@ function todayBalance(walletData) {
 }
 
 function currentUserLevel(user) {
-  return user?.currentLevel || user?.levelName || user?.rank || user?.level || 'Beginner';
+  const value = user?.currentLevel || user?.levelName || user?.rank || user?.level;
+  return value ? String(value) : 'Beginner Level';
 }
 
 const commissionLevels = [
@@ -267,11 +268,12 @@ const commissionLevels = [
 ];
 
 const achievementClubs = [
-  { name: 'Bronze Club', members: '1,000 members', benefit: 'Mobile, fridge, AC, TV, or any electric item', Icon: Smartphone },
-  { name: 'Silver Club', members: '10,000 members', benefit: 'Bike benefit', Icon: Bike },
-  { name: 'Gold Club', members: '1,00,000 members', benefit: 'Car benefit', Icon: Car },
-  { name: 'Platinum Club', members: '10,00,000 members', benefit: 'House flat or ₹25 lakh benefit', Icon: House },
-  { name: 'Diamond Club', members: '100,00,000 members', benefit: 'Villa flat benefit', Icon: Gem }
+  { level: 1, name: 'Beginner Level', members: 'New member', benefit: 'Benefit one eligibility starts here', Icon: Crown },
+  { level: 2, name: 'Bronze Level', members: '1,000 members', benefit: 'Mobile, fridge, AC, TV, or any electric item', Icon: Smartphone },
+  { level: 3, name: 'Silver Level', members: '10,000 members', benefit: 'Bike benefit', Icon: Bike },
+  { level: 4, name: 'Gold Level', members: '1,00,000 members', benefit: 'Car benefit', Icon: Car },
+  { level: 5, name: 'Platinum Level', members: '10,00,000 members', benefit: 'House flat or ₹25 lakh benefit', Icon: House },
+  { level: 6, name: 'Diamond Level', members: '100,00,000 members', benefit: 'Villa flat benefit', Icon: Gem }
 ];
 
 function useApiData(path, fallback, mapper = (x) => x) {
@@ -865,6 +867,7 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
       <h2>Personal information and account security.</h2>
       {message && <p className="form-note success-note">{message}</p>}
       {error && <p className="error">{error}</p>}
+      <ProfileLevelPanel user={user} />
       <div className="profile-grid">
         <article className="panel">
           <h3>Profile Photo</h3>
@@ -902,6 +905,31 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
       </div>
       <HierarchyPanel user={user} />
     </section>
+  );
+}
+
+function ProfileLevelPanel({ user }) {
+  const levelName = currentUserLevel(user);
+  return (
+    <article className="panel profile-level-panel">
+      <div>
+        <span className="section-kicker">Level Achievement</span>
+        <h3>{levelName}</h3>
+        <p className="muted">Your level grows as your downline and achievement milestones grow.</p>
+      </div>
+      <div className="level-table">
+        <div className="level-table-head">
+          <span>Level</span>
+          <span>Achievement</span>
+        </div>
+        {achievementClubs.map((item) => (
+          <div className="level-table-row" key={item.name}>
+            <strong>{item.level}</strong>
+            <span>{item.name}</span>
+          </div>
+        ))}
+      </div>
+    </article>
   );
 }
 
@@ -1057,6 +1085,9 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
   const calendar = getMonthlyCalendar();
   const activePlan = packages.find((pkg) => pkg.id === selectedPlan) || packages[0];
   const planLabels = ['A Plan', 'B Plan', 'C Plan'];
+  const nextTaskRow = progressSummary.rows.find((row) => Number(row.progress.percent || 0) < 100);
+  const currentTask = nextTaskRow?.task || null;
+  const currentTaskNumber = currentTask ? progressSummary.rows.findIndex((row) => row.task.id === currentTask.id) + 1 : progressSummary.total;
 
   return (
     <section className="section">
@@ -1106,17 +1137,27 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
         </div>
       </div>
       <p className="muted task-policy">Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.</p>
+      {currentTask && (
+        <div className="task-sequence-panel">
+          <strong>Current task {currentTaskNumber} of {progressSummary.total}</strong>
+          <span>Finish this video fully to unlock the next task.</span>
+        </div>
+      )}
       <div className="task-list">
-        {tasks.length ? tasks.map((task) => (
+        {currentTask ? (
           <TaskCard
-            task={task}
+            task={currentTask}
             userId={user?.id}
-            key={task.id}
+            key={currentTask.id}
             activeTaskId={activeTaskId}
             setActiveTaskId={setActiveTaskId}
             setWatchLockMessage={setWatchLockMessage}
           />
-        )) : <p className="muted">No active tasks are available right now. New ad tasks posted by admin will appear here automatically.</p>}
+        ) : tasks.length ? (
+          <p className="muted">All available videos are completed for today. Admin can now review today’s activity.</p>
+        ) : (
+          <p className="muted">No active tasks are available right now. New ad tasks posted by admin will appear here automatically.</p>
+        )}
       </div>
     </section>
   );
@@ -1370,6 +1411,7 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
   const [bank, setBank] = useState({ bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '', upiId: '', panNumber: '' });
   const [withdrawAmount, setWithdrawAmount] = useState('');
   if (!isLoggedIn) return <Gate title="Your rewards stay organized." text="Login to see your balance, save bank or UPI details, and request money when you are ready." action={setAuthOpen} />;
+  const withdrawalHistory = (wallet.transactions || []).filter((tx) => tx.category === 'withdrawal' || tx.type === 'debit');
 
   async function saveBank() {
     try {
@@ -1393,36 +1435,51 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
       <div className="wallet-layout">
         <article className="balance-panel">
           <Wallet size={28} />
-          <span>Combined Balance</span>
+          <span>Withdraw Balance</span>
           <strong>{money(wallet.wallet?.availableBalance)}</strong>
-          <small>Daily task income is credited by admin during weekly or monthly payout processing.</small>
+          <small>Available rewards that can be requested for payout.</small>
           <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="Amount to request" />
           <button className="primary" onClick={requestWithdrawal}>Request Money</button>
         </article>
+        <article className="panel withdraw-history-panel">
+          <h3>Withdraw History</h3>
+          {withdrawalHistory.length ? withdrawalHistory.slice(0, 4).map((tx) => (
+            <div className="transaction-row" key={tx.id}>
+              <span>{tx.remarks || tx.category}</span>
+              <strong>{money(tx.amount)}</strong>
+            </div>
+          )) : <p className="muted">No withdrawal requests yet.</p>}
+        </article>
         <article className="panel">
-          <h3>Bank / UPI Details</h3>
+          <h3>Bank Details</h3>
           <p className="muted">Bank details can be submitted once. Later changes require admin approval.</p>
           <div className="form-grid">
             <input placeholder="Bank name" value={bank.bankName} onChange={(e) => setBank({ ...bank, bankName: e.target.value })} />
             <input placeholder="Account holder name" value={bank.accountHolderName} onChange={(e) => setBank({ ...bank, accountHolderName: e.target.value })} />
             <input placeholder="Account number" value={bank.accountNumber} onChange={(e) => setBank({ ...bank, accountNumber: e.target.value })} />
             <input placeholder="IFSC code" value={bank.ifscCode} onChange={(e) => setBank({ ...bank, ifscCode: e.target.value })} />
-            <input placeholder="UPI ID" value={bank.upiId} onChange={(e) => setBank({ ...bank, upiId: e.target.value })} />
             <input placeholder="PAN number" value={bank.panNumber} onChange={(e) => setBank({ ...bank, panNumber: e.target.value })} />
           </div>
-          <button className="ghost" onClick={saveBank}>Save Details</button>
+          <button className="ghost" onClick={saveBank}>Save Bank Details</button>
+        </article>
+        <article className="panel">
+          <h3>UPI Details</h3>
+          <p className="muted">Add a UPI ID if you prefer receiving payouts through UPI.</p>
+          <div className="form-grid one">
+            <input placeholder="UPI ID" value={bank.upiId} onChange={(e) => setBank({ ...bank, upiId: e.target.value })} />
+          </div>
+          <button className="ghost" onClick={saveBank}>Save UPI Details</button>
         </article>
       </div>
-      <div className="panel">
+      <div className="panel recent-transactions-panel">
         <h3>Recent Transactions</h3>
         {(wallet.transactions || []).length ? wallet.transactions.map((tx) => (
           <div className="transaction-row" key={tx.id}>
-            <span>{tx.category}</span>
+            <span>{tx.remarks || tx.category}</span>
             <strong>{money(tx.amount)}</strong>
           </div>
         )) : <p className="muted">No activity yet. Your rewards and requests will appear here.</p>}
       </div>
-      <LevelAchievements />
     </section>
   );
 }
