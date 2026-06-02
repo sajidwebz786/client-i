@@ -679,6 +679,19 @@ button {
   gap: 18px;
 }
 
+.personal-info-panel {
+  grid-column: 1 / -1;
+}
+
+.profile-info-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-info-grid input:first-child,
+.profile-info-grid input:nth-child(5) {
+  grid-column: span 2;
+}
+
 .profile-level-panel {
   display: grid;
   grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1.15fr);

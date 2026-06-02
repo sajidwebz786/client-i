@@ -795,7 +795,13 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
 }
 
 function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate }) {
-  const [profile, setProfile] = useState({ name: user?.name || '', email: user?.email || '', mobile: user?.mobile || '' });
+  const [profile, setProfile] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    mobile: user?.mobile || '',
+    aadhaarNumber: user?.aadhaarNumber || user?.aadharNumber || '',
+    panNumber: user?.bankDetail?.panNumber || user?.panNumber || ''
+  });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
   const [photo, setPhoto] = useState(() => absoluteAssetUrl(user?.avatarUrl));
   const [photoFile, setPhotoFile] = useState(null);
@@ -819,7 +825,11 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
 
   async function saveProfile() {
     try {
-      const res = await api.put('/auth/profile', profile);
+      const res = await api.put('/auth/profile', {
+        name: profile.name,
+        email: profile.email,
+        mobile: profile.mobile
+      });
       if (res.data.user) onUserUpdate(res.data.user);
       showSuccess('Profile information updated.');
     } catch (err) {
@@ -884,12 +894,14 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
           </label>
           <button className="ghost" onClick={savePhoto}>Save Photo</button>
         </article>
-        <article className="panel">
+        <article className="panel personal-info-panel">
           <h3>Personal Information</h3>
-          <div className="form-grid">
+          <div className="form-grid profile-info-grid">
             <input placeholder="Full name" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} />
             <input placeholder="Email address" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} />
             <input placeholder="Mobile number" value={profile.mobile} onChange={(e) => setProfile({ ...profile, mobile: e.target.value })} />
+            <input placeholder="Aadhaar card number" value={profile.aadhaarNumber} onChange={(e) => setProfile({ ...profile, aadhaarNumber: e.target.value })} />
+            <input placeholder="PAN card number" value={profile.panNumber} onChange={(e) => setProfile({ ...profile, panNumber: e.target.value })} />
           </div>
           <button className="primary" onClick={saveProfile}>Save Profile</button>
         </article>
