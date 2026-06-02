@@ -830,7 +830,15 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
         email: profile.email,
         mobile: profile.mobile
       });
-      if (res.data.user) onUserUpdate(res.data.user);
+      if (profile.aadhaarNumber || profile.panNumber) {
+        await api.put('/wallet/bank-details', {
+          aadhaarNumber: profile.aadhaarNumber,
+          panNumber: profile.panNumber
+        });
+      }
+      const refreshed = await api.get('/auth/profile');
+      if (refreshed.data.user) onUserUpdate(refreshed.data.user);
+      else if (res.data.user) onUserUpdate(res.data.user);
       showSuccess('Profile information updated.');
     } catch (err) {
       showError(err, 'Unable to update profile information.');
