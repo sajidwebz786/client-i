@@ -156,7 +156,7 @@ const demoPackages = [
 ];
 
 const demoTasks = [
-  { id: 'task-1', title: 'Watch a brand video', platform: 'youtube', rewardAmount: 25, description: 'Spend a few minutes with a featured brand video and share your completion screen.', taskUrl: 'https://youtube.com' },
+  { id: 'task-1', title: 'Complete a brand task', platform: 'youtube', rewardAmount: 25, description: 'Spend a few minutes with a featured brand task and share your completion screen.', taskUrl: 'https://youtube.com' },
   { id: 'task-2', title: 'Share a social poster', platform: 'whatsapp', rewardAmount: 15, description: 'Help a local campaign reach more people by sharing its poster.', taskUrl: 'https://whatsapp.com' },
   { id: 'task-3', title: 'Follow a launch page', platform: 'instagram', rewardAmount: 20, description: 'Support a new campaign page and share your completion screen.', taskUrl: 'https://instagram.com' }
 ];
@@ -237,6 +237,28 @@ function dailyIncome(pkg) {
 function perAdValue(pkg) {
   const ads = dailyAds(pkg);
   return ads ? dailyIncome(pkg) / ads : 0;
+}
+
+function packageAmount(pkg) {
+  return Number(pkg?.baseAmount || pkg?.finalAmount || 0);
+}
+
+function sortPackagesByAmount(packages = []) {
+  return [...packages].sort((a, b) => packageAmount(a) - packageAmount(b));
+}
+
+function taskPackageId(task) {
+  return task?.packageId || task?.package?.id || '';
+}
+
+function sortTasksByPlan(tasks = [], packages = []) {
+  const amountByPackageId = new Map(packages.map((pkg) => [pkg.id, packageAmount(pkg)]));
+  return [...tasks].sort((a, b) => {
+    const amountA = amountByPackageId.get(taskPackageId(a)) ?? Number(a.package?.baseAmount || Number.MAX_SAFE_INTEGER);
+    const amountB = amountByPackageId.get(taskPackageId(b)) ?? Number(b.package?.baseAmount || Number.MAX_SAFE_INTEGER);
+    if (amountA !== amountB) return amountA - amountB;
+    return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+  });
 }
 
 function todayBalance(walletData) {
@@ -719,7 +741,7 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
     ['Invite Code', user?.referralCode || 'Pending', TreePine],
     ['Current Level', currentUserLevel(user), Layers3]
   ];
-  const progressSummary = getTaskProgressSummary(user?.id, tasks, progressVersion);
+  const progressSummary = getTaskProgressSummary(user?.id, sortTasksByPlan(tasks, packages), progressVersion);
   const watchedRows = progressSummary.rows.filter((row) => Number(row.progress.percent || 0) > 0);
   const gettingStarted = [
     ['Profile completed', Boolean(user?.name && user?.mobile)],
@@ -780,15 +802,15 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
           <div className="task-summary-stats">
             <div><strong>{progressSummary.completed}</strong><span>Completed</span></div>
             <div><strong>{progressSummary.pending}</strong><span>Pending</span></div>
-            <div><strong>{progressSummary.average}%</strong><span>Average watched</span></div>
+            <div><strong>{progressSummary.average}%</strong><span>Average progress</span></div>
           </div>
           <div className="progress-track"><span style={{ width: `${progressSummary.average}%` }} /></div>
           {progressSummary.total ? (
             <p className="muted">
-              You watched {progressSummary.completed} of {progressSummary.total} videos completely. {progressSummary.pending ? `Continue the remaining ${progressSummary.pending} task${progressSummary.pending === 1 ? '' : 's'} to close today’s activity.` : 'Today’s activity is complete.'}
+              You completed {progressSummary.completed} of {progressSummary.total} tasks. {progressSummary.pending ? `Continue the remaining ${progressSummary.pending} task${progressSummary.pending === 1 ? '' : 's'} to close today’s activity.` : 'Today’s activity is complete.'}
             </p>
           ) : (
-            <p className="muted">No active videos are available for today yet.</p>
+            <p className="muted">No active tasks are available for today yet.</p>
           )}
           {watchedRows.length > 0 && (
             <div className="task-summary-list">
@@ -1098,17 +1120,19 @@ function HierarchyTree({ node, root = false }) {
 
 function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
   const userPlanId = user?.packageId || user?.package?.id || '';
-  const [selectedPlan, setSelectedPlan] = useState(userPlanId || packages[0]?.id || '');
+  const sortedPackages = sortPackagesByAmount(packages);
+  const sortedTasks = sortTasksByPlan(tasks, sortedPackages);
+  const taskPlanIds = new Set(sortedTasks.map(taskPackageId).filter(Boolean));
+  if (userPlanId) taskPlanIds.add(userPlanId);
+  const visiblePlans = sortedPackages.filter((pkg) => taskPlanIds.has(pkg.id));
+  const firstPlanId = visiblePlans[0]?.id || sortedPackages[0]?.id || '';
+  const [selectedPlan, setSelectedPlan] = useState(userPlanId || firstPlanId);
   const [progressVersion, setProgressVersion] = useState(0);
   const [activeTaskId, setActiveTaskId] = useState('');
   const [watchLockMessage, setWatchLockMessage] = useState('');
   useEffect(() => {
-    if (userPlanId && userPlanId !== selectedPlan) {
-      setSelectedPlan(userPlanId);
-      return;
-    }
-    if (!selectedPlan && packages[0]?.id) setSelectedPlan(packages[0].id);
-  }, [packages, selectedPlan, userPlanId]);
+    if (firstPlanId && !visiblePlans.some((pkg) => pkg.id === selectedPlan)) setSelectedPlan(firstPlanId);
+  }, [firstPlanId, selectedPlan, visiblePlans]);
   useEffect(() => {
     function refreshProgress() {
       setProgressVersion((value) => value + 1);
@@ -1116,7 +1140,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
     window.addEventListener('luminateads-task-progress', refreshProgress);
     return () => window.removeEventListener('luminateads-task-progress', refreshProgress);
   }, []);
-  const progressSummary = getTaskProgressSummary(user?.id, tasks, progressVersion);
+  const progressSummary = getTaskProgressSummary(user?.id, sortedTasks, progressVersion);
   const inProgressTask = progressSummary.rows.find((row) => Number(row.progress.percent || 0) > 0 && Number(row.progress.percent || 0) < 100);
   useEffect(() => {
     if (!activeTaskId && inProgressTask?.task?.id) {
@@ -1130,9 +1154,21 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
 
   if (!isLoggedIn) return <Gate title="Daily ad activities unlock payouts." text="Login to see date-wise assignments, complete daily ads, and submit proof with remarks." action={setAuthOpen} />;
   const calendar = getMonthlyCalendar();
-  const activePlan = packages.find((pkg) => pkg.id === selectedPlan) || packages[0];
+  const rowsByPlan = new Map();
+  for (const row of progressSummary.rows) {
+    const planId = taskPackageId(row.task) || firstPlanId;
+    if (!rowsByPlan.has(planId)) rowsByPlan.set(planId, []);
+    rowsByPlan.get(planId).push(row);
+  }
+  const priorityPlanWithPending = visiblePlans.find((pkg) => (rowsByPlan.get(pkg.id) || []).some((row) => Number(row.progress.percent || 0) < 100));
+  const effectivePlanId = priorityPlanWithPending?.id || selectedPlan || firstPlanId;
+  const activePlan = sortedPackages.find((pkg) => pkg.id === effectivePlanId) || visiblePlans[0] || sortedPackages[0];
   const planLabels = ['A Plan', 'B Plan', 'C Plan'];
-  const nextTaskRow = progressSummary.rows.find((row) => Number(row.progress.percent || 0) < 100);
+  const effectiveRows = progressSummary.rows.filter((row) => {
+    const planId = taskPackageId(row.task);
+    return planId ? planId === effectivePlanId : true;
+  });
+  const nextTaskRow = effectiveRows.find((row) => Number(row.progress.percent || 0) < 100);
   const currentTask = nextTaskRow?.task || null;
   const currentTaskNumber = currentTask ? progressSummary.rows.findIndex((row) => row.task.id === currentTask.id) + 1 : progressSummary.total;
 
@@ -1141,24 +1177,24 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       <span className="section-kicker">Activities</span>
       <h2>Monthly calendar-based ad tasks.</h2>
       <div className="plan-switcher" aria-label="Task plan selector">
-        {packages.slice(0, 3).map((pkg, index) => (
+        {(visiblePlans.length ? visiblePlans : sortedPackages.slice(0, 3)).map((pkg, index) => (
           <button key={pkg.id} className={activePlan?.id === pkg.id ? 'active' : ''} onClick={() => setSelectedPlan(pkg.id)}>
             <strong>{planLabels[index] || pkg.name}</strong>
             <span>{pkg.name}</span>
           </button>
         ))}
       </div>
-      {activePlan && <p className="muted task-plan-note">Selected view: {activePlan.name}. Admin uploaded videos appear below.</p>}
+      {activePlan && <p className="muted task-plan-note">Current task sequence: {activePlan.name}. Lower priced approved plans are completed first, then the next plan opens.</p>}
       <div className="daily-progress-panel">
         <div>
           <strong>{progressSummary.completed}/{progressSummary.total}</strong>
-          <span>videos completed today</span>
+          <span>tasks completed today</span>
         </div>
         <div>
           <strong>{progressSummary.average}%</strong>
-          <span>average watched</span>
+          <span>average task progress</span>
         </div>
-        <p>{progressSummary.pending ? `${progressSummary.pending} video${progressSummary.pending === 1 ? '' : 's'} pending. Continue watching the remaining tasks to close today’s activity.` : 'All available videos are completed for today.'}</p>
+        <p>{progressSummary.pending ? `${progressSummary.pending} task${progressSummary.pending === 1 ? '' : 's'} pending. Continue the remaining tasks to close today’s activity.` : 'All available tasks are completed for today.'}</p>
       </div>
       {watchLockMessage && <p className="watch-lock-message">{watchLockMessage}</p>}
       <div className="calendar-shell">
@@ -1187,7 +1223,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       {currentTask && (
         <div className="task-sequence-panel">
           <strong>Current task {currentTaskNumber} of {progressSummary.total}</strong>
-          <span>Finish this video fully to unlock the next task.</span>
+          <span>Finish this task fully to unlock the next task.</span>
         </div>
       )}
       <div className="task-list">
@@ -1200,8 +1236,8 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
             setActiveTaskId={setActiveTaskId}
             setWatchLockMessage={setWatchLockMessage}
           />
-        ) : tasks.length ? (
-          <p className="muted">All available videos are completed for today. Admin can now review today’s activity.</p>
+        ) : sortedTasks.length ? (
+          <p className="muted">All available tasks are completed for today. Admin can now review today’s activity.</p>
         ) : (
           <p className="muted">No active tasks are available right now. New ad tasks posted by admin will appear here automatically.</p>
         )}
@@ -1239,11 +1275,11 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
       return true;
     }
     if (activeTaskIdRef.current && activeTaskIdRef.current !== task.id) {
-      setWatchLockMessage?.('Finish the video already in progress before starting another task.');
+      setWatchLockMessage?.('Finish the task already in progress before starting another task.');
       return false;
     }
     setActiveTaskId?.(task.id);
-    setWatchLockMessage?.(`Continue "${task.title}" until it is fully watched.`);
+    setWatchLockMessage?.(`Continue "${task.title}" until it is fully completed.`);
     return true;
   }
 
@@ -1251,7 +1287,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
     setProgress(100);
     saveTaskProgress(userId, task.id, { percent: 100, seconds });
     setActiveTaskId?.('');
-    setWatchLockMessage?.(`"${task.title}" is completed. You can start the next video now.`);
+    setWatchLockMessage?.(`"${task.title}" is completed. You can start the next task now.`);
   }
 
   useEffect(() => {
@@ -1403,7 +1439,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
                 setWatching(true);
                 youtubePlayerRef.current?.playVideo?.();
               }}>
-                {isLocked && <div className="video-lock-overlay">Finish the current video first</div>}
+                {isLocked && <div className="video-lock-overlay">Finish the current task first</div>}
                 {isDirectVideo ? (
                   <video ref={directVideoRef} src={videoUrl} controls onLoadedMetadata={restoreDirectVideo} onTimeUpdate={onVideoProgress} onPlay={onDirectVideoPlay} onEnded={(event) => {
                     completeWatch(event.currentTarget.duration || readTaskProgress(userId, task).seconds || 0);
@@ -1422,7 +1458,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
                 )}
               </div>
               <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-              <div className="progress-meta"><span>{progress}% watched</span><span>{progress >= 100 ? 'Completed' : 'Watch the video to move progress'}</span></div>
+              <div className="progress-meta"><span>{progress}% completed</span><span>{progress >= 100 ? 'Completed' : 'Complete the task to move progress'}</span></div>
             </div>
     </article>
   );
@@ -1490,7 +1526,7 @@ function getYouTubeId(url) {
 }
 
 function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
-  const [bank, setBank] = useState({ bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '', upiId: '', panNumber: '' });
+  const [bank, setBank] = useState({ bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '', upiId: '' });
   const [withdrawAmount, setWithdrawAmount] = useState('');
   if (!isLoggedIn) return <Gate title="Your rewards stay organized." text="Login to see your balance, save bank or UPI details, and request money when you are ready." action={setAuthOpen} />;
   const withdrawalHistory = (wallet.transactions || []).filter((tx) => tx.category === 'withdrawal' || tx.type === 'debit');
@@ -1540,7 +1576,6 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
             <input placeholder="Account holder name" value={bank.accountHolderName} onChange={(e) => setBank({ ...bank, accountHolderName: e.target.value })} />
             <input placeholder="Account number" value={bank.accountNumber} onChange={(e) => setBank({ ...bank, accountNumber: e.target.value })} />
             <input placeholder="IFSC code" value={bank.ifscCode} onChange={(e) => setBank({ ...bank, ifscCode: e.target.value })} />
-            <input placeholder="PAN number" value={bank.panNumber} onChange={(e) => setBank({ ...bank, panNumber: e.target.value })} />
           </div>
           <button className="ghost" onClick={saveBank}>Save Bank Details</button>
         </article>
