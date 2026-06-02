@@ -887,33 +887,38 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
       {error && <p className="error">{error}</p>}
       <ProfileLevelPanel user={user} />
       <div className="profile-grid">
-        <article className="panel">
-          <h3>Profile Photo</h3>
-          <div className="avatar-preview">{photo ? <img src={photo} alt="Profile preview" /> : <Contact size={42} />}</div>
-          <label className="file-field">
-            <Upload size={18} /> Upload photo
-            <input type="file" accept="image/*" onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                setPhotoFile(file);
-                setPhoto(URL.createObjectURL(file));
-              }
-            }} />
-          </label>
-          <button className="ghost" onClick={savePhoto}>Save Photo</button>
-        </article>
-        <article className="panel personal-info-panel">
-          <h3>Personal Information</h3>
-          <div className="form-grid profile-info-grid">
-            <input placeholder="Full name" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} />
-            <input placeholder="Email address" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} />
-            <input placeholder="Mobile number" value={profile.mobile} onChange={(e) => setProfile({ ...profile, mobile: e.target.value })} />
-            <input placeholder="Aadhaar card number" value={profile.aadhaarNumber} onChange={(e) => setProfile({ ...profile, aadhaarNumber: e.target.value })} />
-            <input placeholder="PAN card number" value={profile.panNumber} onChange={(e) => setProfile({ ...profile, panNumber: e.target.value })} />
+        <article className="panel profile-main-panel">
+          <div className="profile-photo-column">
+            <h3>Profile Photo</h3>
+            <div className="avatar-preview">{photo ? <img src={photo} alt="Profile preview" /> : <Contact size={42} />}</div>
+            <label className="file-field">
+              <Upload size={18} /> Upload photo
+              <input type="file" accept="image/*" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setPhotoFile(file);
+                  setPhoto(URL.createObjectURL(file));
+                }
+              }} />
+            </label>
+            <button className="ghost" onClick={savePhoto}>Save Photo</button>
           </div>
-          <button className="primary" onClick={saveProfile}>Save Profile</button>
+          <div className="profile-info-column">
+            <div className="profile-panel-head">
+              <h3>Personal Information</h3>
+              <p className="muted">Keep your contact and document details ready for account verification.</p>
+            </div>
+            <div className="profile-info-grid">
+              <LabeledInput className="wide" label="Full Name" placeholder="Enter full name" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} />
+              <LabeledInput label="Mobile Number" placeholder="Enter mobile number" value={profile.mobile} onChange={(e) => setProfile({ ...profile, mobile: e.target.value })} />
+              <LabeledInput className="wide" label="Email Address" placeholder="Enter email address" value={profile.email} onChange={(e) => setProfile({ ...profile, email: e.target.value })} />
+              <LabeledInput label="PAN Card" placeholder="Enter PAN number" value={profile.panNumber} onChange={(e) => setProfile({ ...profile, panNumber: e.target.value })} />
+              <LabeledInput className="wide" label="Aadhaar Card" placeholder="Enter Aadhaar number" value={profile.aadhaarNumber} onChange={(e) => setProfile({ ...profile, aadhaarNumber: e.target.value })} />
+            </div>
+            <button className="primary" onClick={saveProfile}>Save Profile</button>
+          </div>
         </article>
-        <article className="panel">
+        <article className="panel password-panel">
           <h3>{user?.hasPassword ? 'Change Password' : 'Add Password'}</h3>
           <p className="muted">Use a password to keep your account login simple and secure.</p>
           <div className="form-grid">
@@ -925,6 +930,15 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
       </div>
       <HierarchyPanel user={user} />
     </section>
+  );
+}
+
+function LabeledInput({ label, className = '', ...props }) {
+  return (
+    <label className={`field-label ${className}`.trim()}>
+      <span>{label}</span>
+      <input {...props} />
+    </label>
   );
 }
 
@@ -1354,13 +1368,23 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
     restoredDirectRef.current = true;
   }
 
+  function openExternalTask(event) {
+    event.stopPropagation();
+    if (!videoUrl || !requestWatchStart()) return;
+    setWatching(true);
+    window.open(videoUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  const platformLabel = getTaskPlatformLabel(task.platform, videoUrl);
+  const platformIcon = getTaskPlatformIcon(task.platform, videoUrl);
+
   return (
     <article className="task-card">
-            <span className="task-icon">{task.platform === 'youtube' ? <PlayCircle /> : task.platform === 'whatsapp' ? <MessageCircle /> : <ClipboardCheck />}</span>
+            <span className="task-icon">{platformIcon}</span>
             <div>
               <strong>{task.title}</strong>
               <p>{task.description}</p>
-              <small>{task.platform} · status {progress >= 100 ? 'completed' : progress > 0 ? 'in progress' : 'pending'}</small>
+              <small>{platformLabel} · status {progress >= 100 ? 'completed' : progress > 0 ? 'in progress' : 'pending'}</small>
               <div className={`video-player ${isLocked ? 'locked' : ''}`} onClick={() => {
                 if (!requestWatchStart()) return;
                 setWatching(true);
@@ -1376,7 +1400,12 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
                 ) : embedUrl ? (
                   <iframe src={embedUrl} title={task.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                 ) : (
-                  <div className="video-placeholder"><PlayCircle size={32} /><span>Open the activity link and track your watching progress here.</span></div>
+                  <div className="video-placeholder task-link-runner">
+                    {platformIcon}
+                    <strong>{platformLabel} Task</strong>
+                    <span>{videoUrl ? 'Open the task link in a new tab. Keep this task active until the progress reaches 100%.' : 'No task link is attached to this activity yet.'}</span>
+                    {videoUrl && <button type="button" className="primary" onClick={openExternalTask}>Open {platformLabel} Task</button>}
+                  </div>
                 )}
               </div>
               <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
@@ -1384,6 +1413,26 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
             </div>
     </article>
   );
+}
+
+function getTaskPlatformLabel(platform = '', url = '') {
+  const value = `${platform} ${url}`.toLowerCase();
+  if (value.includes('instagram')) return 'Instagram';
+  if (value.includes('whatsapp') || value.includes('wa.me')) return 'WhatsApp';
+  if (value.includes('youtube') || value.includes('youtu.be')) return 'YouTube';
+  if (value.includes('facebook')) return 'Facebook';
+  if (value.includes('telegram') || value.includes('t.me')) return 'Telegram';
+  if (platform) return platform.charAt(0).toUpperCase() + platform.slice(1);
+  return 'External';
+}
+
+function getTaskPlatformIcon(platform = '', url = '') {
+  const label = getTaskPlatformLabel(platform, url);
+  if (label === 'Instagram') return <Instagram />;
+  if (label === 'WhatsApp') return <MessageCircle />;
+  if (label === 'YouTube') return <PlayCircle />;
+  if (label === 'External') return <Globe2 />;
+  return <ClipboardCheck />;
 }
 
 function getEmbedUrl(url) {
