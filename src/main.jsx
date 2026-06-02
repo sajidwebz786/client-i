@@ -351,6 +351,19 @@ function App() {
   }
 
   useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, []);
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+  }, [active]);
+
+  useEffect(() => {
     function handleExpiredSession() {
       setToken(null);
       setUser(null);
@@ -1230,7 +1243,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
       return false;
     }
     setActiveTaskId?.(task.id);
-    setWatchLockMessage?.(`Continue "${task.title}" until it is fully watched. Other videos stay locked for focus.`);
+    setWatchLockMessage?.(`Continue "${task.title}" until it is fully watched.`);
     return true;
   }
 
