@@ -1152,7 +1152,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
     if (Number(activeProgress?.percent || 0) >= 100) setActiveTaskId('');
   }, [activeTaskId, inProgressTask?.task?.id, progressSummary.rows]);
 
-  if (!isLoggedIn) return <Gate title="Daily ad activities unlock payouts." text="Login to see date-wise assignments, complete daily ads, and submit proof with remarks." action={setAuthOpen} />;
+  if (!isLoggedIn) return <Gate title="Daily ad activities" text="Login to see today’s assigned tasks and track your completion." action={setAuthOpen} />;
   const calendar = getMonthlyCalendar();
   const rowsByPlan = new Map();
   for (const row of progressSummary.rows) {
@@ -1184,7 +1184,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
           </button>
         ))}
       </div>
-      {activePlan && <p className="muted task-plan-note">Current task sequence: {activePlan.name}. Lower priced approved plans are completed first, then the next plan opens.</p>}
+      {activePlan && <p className="muted task-plan-note">{activePlan.name}</p>}
       <div className="daily-progress-panel">
         <div>
           <strong>{progressSummary.completed}/{progressSummary.total}</strong>
@@ -1223,7 +1223,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       {currentTask && (
         <div className="task-sequence-panel">
           <strong>Current task {currentTaskNumber} of {progressSummary.total}</strong>
-          <span>Finish this task fully to unlock the next task.</span>
+          <span>Complete this task to continue.</span>
         </div>
       )}
       <div className="task-list">
@@ -1275,11 +1275,11 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
       return true;
     }
     if (activeTaskIdRef.current && activeTaskIdRef.current !== task.id) {
-      setWatchLockMessage?.('Finish the task already in progress before starting another task.');
+      setWatchLockMessage?.('Please complete the current task first.');
       return false;
     }
     setActiveTaskId?.(task.id);
-    setWatchLockMessage?.(`Continue "${task.title}" until it is fully completed.`);
+    setWatchLockMessage?.(`Task started: ${task.title}`);
     return true;
   }
 
@@ -1287,7 +1287,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
     setProgress(100);
     saveTaskProgress(userId, task.id, { percent: 100, seconds });
     setActiveTaskId?.('');
-    setWatchLockMessage?.(`"${task.title}" is completed. You can start the next task now.`);
+    setWatchLockMessage?.(`Completed: ${task.title}`);
   }
 
   useEffect(() => {
@@ -1439,7 +1439,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
                 setWatching(true);
                 youtubePlayerRef.current?.playVideo?.();
               }}>
-                {isLocked && <div className="video-lock-overlay">Finish the current task first</div>}
+                {isLocked && <div className="video-lock-overlay">Complete the current task first</div>}
                 {isDirectVideo ? (
                   <video ref={directVideoRef} src={videoUrl} controls onLoadedMetadata={restoreDirectVideo} onTimeUpdate={onVideoProgress} onPlay={onDirectVideoPlay} onEnded={(event) => {
                     completeWatch(event.currentTarget.duration || readTaskProgress(userId, task).seconds || 0);
@@ -1452,7 +1452,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
                   <div className="video-placeholder task-link-runner">
                     {platformIcon}
                     <strong>{platformLabel} Task</strong>
-                    <span>{videoUrl ? 'Open the task link in a new tab. Keep this task active until the progress reaches 100%.' : 'No task link is attached to this activity yet.'}</span>
+                    <span>{videoUrl ? 'Open the task link when needed, then return here to continue progress.' : 'No task link is attached to this activity yet.'}</span>
                     {videoUrl && <button type="button" className="primary" onClick={openExternalTask}>Open {platformLabel} Task</button>}
                   </div>
                 )}
