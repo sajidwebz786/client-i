@@ -898,7 +898,6 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
       <h2>Personal information and account security.</h2>
       {message && <p className="form-note success-note">{message}</p>}
       {error && <p className="error">{error}</p>}
-      <ProfileLevelPanel user={user} />
       <div className="profile-grid">
         <article className="panel profile-main-panel">
           <div className="profile-photo-column">
@@ -941,6 +940,7 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
           <button className="ghost" onClick={savePassword}>{user?.hasPassword ? 'Change Password' : 'Add Password'}</button>
         </article>
       </div>
+      <ProfileLevelPanel user={user} />
       <HierarchyPanel user={user} />
     </section>
   );
