@@ -1758,29 +1758,66 @@ function AuthModal({ onClose, onSession, packages }) {
     setBusy(true);
     setError('');
     try {
+      const name = form.name.trim();
+      const email = form.email.trim().toLowerCase();
+      const mobile = form.mobile.replace(/\D/g, '');
+      const identifier = form.identifier.trim();
+      const password = form.password;
+      const referralCode = form.referralCode.trim();
+
       if (mode === 'register') {
+        if (!name || !email || !mobile || !password) {
+          setError('Please fill all required details.');
+          setBusy(false);
+          return;
+        }
+        if (password.length < 6) {
+          setError('Password must be at least 6 characters.');
+          setBusy(false);
+          return;
+        }
         if (form.password !== form.confirmPassword) {
           setError('Password and repeat password do not match.');
           setBusy(false);
           return;
         }
-        const availability = await api.get('/auth/availability', { params: { email: form.email, mobile: form.mobile } });
-        if (!availability.data.available) {
-          setError(availability.data.message || 'This account is already registered. Please login instead.');
-          setBusy(false);
-          return;
-        }
+      } else if (!identifier || !password) {
+        setError('Enter your email/mobile and password.');
+        setBusy(false);
+        return;
+      }
+      if (mode === 'login' && password.length < 6) {
+        setError('Password must be at least 6 characters.');
+        setBusy(false);
+        return;
       }
       const payload = mode === 'login'
-        ? { identifier: form.identifier, password: form.password }
-        : { name: form.name, email: form.email, mobile: form.mobile, password: form.password, referralCode: form.referralCode };
+        ? { identifier, password }
+        : { name, email, mobile, password, referralCode };
       const res = await api.post(mode === 'login' ? '/auth/login' : '/auth/register', payload);
       onSession(res.data);
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to complete request. Please check details.');
+      if (err.response?.status === 409) {
+        setError(err.response?.data?.message || 'This account is already registered. Please login instead.');
+      } else if (err.response?.status === 422) {
+        setError(err.response?.data?.message || 'Please check the entered details.');
+      } else {
+        setError(err.response?.data?.message || 'Unable to complete request. Please check details.');
+      }
     } finally {
       setBusy(false);
     }
+  }
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setError('');
+    setForm((current) => ({
+      ...current,
+      password: '',
+      confirmPassword: '',
+      identifier: nextMode === 'login' ? current.email || current.mobile || current.identifier : current.identifier
+    }));
   }
 
   return (
@@ -1789,8 +1826,8 @@ function AuthModal({ onClose, onSession, packages }) {
         <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
         <img className="auth-simple-logo" src={logo} alt="Luminate Ads" />
         <div className="auth-tabs">
-          <button className={mode === 'register' ? 'active' : ''} type="button" onClick={() => { setMode('register'); setError(''); }}>Register</button>
-          <button className={mode === 'login' ? 'active' : ''} type="button" onClick={() => { setMode('login'); setError(''); }}>Login</button>
+          <button className={mode === 'register' ? 'active' : ''} type="button" onClick={() => switchMode('register')}>Register</button>
+          <button className={mode === 'login' ? 'active' : ''} type="button" onClick={() => switchMode('login')}>Login</button>
         </div>
         <span className="section-kicker">{mode === 'login' ? 'Member Login' : 'Member Registration'}</span>
         <h2>{mode === 'login' ? 'Login to your dashboard' : 'Create your Luminate Ads account'}</h2>
@@ -1807,14 +1844,14 @@ function AuthModal({ onClose, onSession, packages }) {
             <input required placeholder="Email or mobile" value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} />
           )}
           <div className="password-field">
-            <input required type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            <input required minLength={6} type={showPassword ? 'text' : 'password'} placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
             <button type="button" className="password-toggle" onClick={() => setShowPassword((value) => !value)} title={showPassword ? 'Hide password' : 'Show password'}>
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
           {mode === 'register' && (
             <div className="password-field">
-              <input required type={showPassword ? 'text' : 'password'} placeholder="Repeat password" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} />
+              <input required minLength={6} type={showPassword ? 'text' : 'password'} placeholder="Repeat password" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} />
               <button type="button" className="password-toggle" onClick={() => setShowPassword((value) => !value)} title={showPassword ? 'Hide password' : 'Show password'}>
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
