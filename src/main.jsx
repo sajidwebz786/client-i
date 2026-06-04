@@ -144,9 +144,9 @@ function syncTaskProgress(userId, taskId, progress, date = todayKey()) {
   });
 }
 
-function getTaskProgressSummary(userId, tasks = []) {
+function getTaskProgressSummary(userId, tasks = [], targetCount = tasks.length) {
   const rows = tasks.map((task) => ({ task, progress: readTaskProgress(userId, task) }));
-  const total = rows.length;
+  const total = Math.max(Number(targetCount || 0), rows.length);
   const completed = rows.filter((row) => Number(row.progress.percent || 0) >= 100).length;
   const pending = Math.max(total - completed, 0);
   const average = total ? Math.round(rows.reduce((sum, row) => sum + Number(row.progress.percent || 0), 0) / total) : 0;
@@ -241,6 +241,21 @@ function shareText(code) {
 
 function dailyAds(pkg) {
   return Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
+}
+
+function dailyTargetForPlans(plans = [], fallbackCount = 0) {
+  const target = plans.reduce((sum, pkg) => sum + dailyAds(pkg), 0);
+  return target || fallbackCount;
+}
+
+function dailyTargetForUserTasks(user, tasks = [], packages = []) {
+  const sortedPackages = sortPackagesByAmount(packages);
+  const packageIds = new Set(tasks.map(taskPackageId).filter(Boolean));
+  const userPlanId = user?.packageId || user?.package?.id || '';
+  if (userPlanId) packageIds.add(userPlanId);
+  const targetPlans = sortedPackages.filter((pkg) => packageIds.has(pkg.id));
+  if (!targetPlans.length && user?.package) targetPlans.push(user.package);
+  return dailyTargetForPlans(targetPlans, tasks.length);
 }
 
 function dailyIncome(pkg) {
@@ -776,7 +791,9 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
     ['Invite Code', user?.referralCode || 'Pending', TreePine],
     ['Current Level', currentUserLevel(user), Layers3]
   ];
-  const progressSummary = getTaskProgressSummary(user?.id, sortTasksByPlan(tasks, packages), progressVersion);
+  const sortedDashboardTasks = sortTasksByPlan(tasks, packages);
+  const dashboardTarget = dailyTargetForUserTasks(user, sortedDashboardTasks, packages);
+  const progressSummary = getTaskProgressSummary(user?.id, sortedDashboardTasks, dashboardTarget);
   const watchedRows = progressSummary.rows.filter((row) => Number(row.progress.percent || 0) > 0);
   const gettingStarted = [
     ['Profile completed', Boolean(user?.name && user?.mobile)],
@@ -842,7 +859,7 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
           <div className="progress-track"><span style={{ width: `${progressSummary.average}%` }} /></div>
           {progressSummary.total ? (
             <p className="muted">
-              You completed {progressSummary.completed} of {progressSummary.total} tasks. {progressSummary.pending ? `Continue the remaining ${progressSummary.pending} task${progressSummary.pending === 1 ? '' : 's'} to close today’s activity.` : 'Today’s activity is complete.'}
+              You completed {progressSummary.completed} of {progressSummary.total} daily tasks. {progressSummary.pending ? `Continue the remaining ${progressSummary.pending} task${progressSummary.pending === 1 ? '' : 's'} to close today’s activity.` : 'Today’s activity is complete.'}
             </p>
           ) : (
             <p className="muted">No active tasks are available for today yet.</p>
@@ -1175,7 +1192,8 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
     window.addEventListener('luminateads-task-progress', refreshProgress);
     return () => window.removeEventListener('luminateads-task-progress', refreshProgress);
   }, []);
-  const progressSummary = getTaskProgressSummary(user?.id, sortedTasks, progressVersion);
+  const dailyTarget = dailyTargetForUserTasks(user, sortedTasks, sortedPackages);
+  const progressSummary = getTaskProgressSummary(user?.id, sortedTasks, dailyTarget);
   const inProgressTask = progressSummary.rows.find((row) => Number(row.progress.percent || 0) > 0 && Number(row.progress.percent || 0) < 100);
   useEffect(() => {
     if (!activeTaskId && inProgressTask?.task?.id) {
@@ -1203,9 +1221,13 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
     const planId = taskPackageId(row.task);
     return planId ? planId === effectivePlanId : true;
   });
+  const activePlanTarget = activePlan ? dailyAds(activePlan) : effectiveRows.length;
+  const activePlanCompleted = effectiveRows.filter((row) => Number(row.progress.percent || 0) >= 100).length;
+  const activePlanPending = Math.max(activePlanTarget - activePlanCompleted, 0);
+  const activePlanAverage = activePlanTarget ? Math.round(effectiveRows.reduce((sum, row) => sum + Number(row.progress.percent || 0), 0) / activePlanTarget) : 0;
   const nextTaskRow = effectiveRows.find((row) => Number(row.progress.percent || 0) < 100);
   const currentTask = nextTaskRow?.task || null;
-  const currentTaskNumber = currentTask ? progressSummary.rows.findIndex((row) => row.task.id === currentTask.id) + 1 : progressSummary.total;
+  const currentTaskNumber = currentTask ? effectiveRows.findIndex((row) => row.task.id === currentTask.id) + 1 : activePlanTarget;
 
   return (
     <section className="section">
@@ -1222,14 +1244,14 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       {activePlan && <p className="muted task-plan-note">{activePlan.name}</p>}
       <div className="daily-progress-panel">
         <div>
-          <strong>{progressSummary.completed}/{progressSummary.total}</strong>
+          <strong>{activePlanCompleted}/{activePlanTarget}</strong>
           <span>tasks completed today</span>
         </div>
         <div>
-          <strong>{progressSummary.average}%</strong>
+          <strong>{activePlanAverage}%</strong>
           <span>average task progress</span>
         </div>
-        <p>{progressSummary.pending ? `${progressSummary.pending} task${progressSummary.pending === 1 ? '' : 's'} pending. Continue the remaining tasks to close today’s activity.` : 'All available tasks are completed for today.'}</p>
+        <p>{activePlanPending ? `${activePlanPending} task${activePlanPending === 1 ? '' : 's'} pending. Continue the remaining tasks to close today’s activity.` : 'All available tasks are completed for today.'}</p>
       </div>
       {watchLockMessage && <p className="watch-lock-message">{watchLockMessage}</p>}
       <div className="calendar-shell">
@@ -1257,7 +1279,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       <p className="muted task-policy">Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.</p>
       {currentTask && (
         <div className="task-sequence-panel">
-          <strong>Current task {currentTaskNumber} of {progressSummary.total}</strong>
+          <strong>Current task {currentTaskNumber} of {activePlanTarget}</strong>
           <span>Complete this task to continue.</span>
         </div>
       )}
