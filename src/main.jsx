@@ -305,16 +305,16 @@ function currentUserLevel(user) {
 }
 
 const commissionLevels = [
-  { level: 1, percent: 10, amount999: 99.9, label: 'Direct Referral' },
-  { level: 2, percent: 5, amount999: 49.95, label: 'Level 2 Team' },
-  { level: 3, percent: 3, amount999: 29.97, label: 'Level 3 Team' },
-  { level: 4, percent: 1, amount999: 9.99, label: 'Level 4 Team' },
-  { level: 5, percent: 1, amount999: 9.99, label: 'Level 5 Team' },
-  { level: 6, percent: 1, amount999: 9.99, label: 'Level 6 Team' },
-  { level: 7, percent: 1, amount999: 9.99, label: 'Level 7 Team' },
-  { level: 8, percent: 1, amount999: 9.99, label: 'Level 8 Team' },
-  { level: 9, percent: 1, amount999: 9.99, label: 'Level 9 Team' },
-  { level: 10, percent: 1, amount999: 9.99, label: 'Level 10 Team' }
+  { level: 1, percent: 10, amount999: 99.9, label: 'Direct Referral', members: '10 Members', income: '10 x ₹99.90 = ₹999', cumulative: '₹999' },
+  { level: 2, percent: 5, amount999: 49.95, label: 'Level 2 Team', members: '100 Members', income: '100 x ₹49.95 = ₹4,995', cumulative: '₹5,994' },
+  { level: 3, percent: 3, amount999: 29.97, label: 'Level 3 Team', members: '1,000 Members', income: '1,000 x ₹29.97 = ₹29,970', cumulative: '₹35,964' },
+  { level: 4, percent: 1, amount999: 9.99, label: 'Level 4 Team', members: '10,000 Members', income: '10,000 x ₹9.99 = ₹99,900', cumulative: '₹1,35,864' },
+  { level: 5, percent: 1, amount999: 9.99, label: 'Level 5 Team', members: '1,00,000 Members', income: '1,00,000 x ₹9.99 = ₹9,99,000', cumulative: '₹11,34,864' },
+  { level: 6, percent: 0.5, amount999: 4.995, label: 'Level 6 Team', members: '10,00,000 Members', income: '10,00,000 x ₹4.995 = ₹49,95,000', cumulative: '₹61,29,864' },
+  { level: 7, percent: 0.5, amount999: 4.995, label: 'Level 7 Team', members: '1,00,00,000 Members', income: '1,00,00,000 x ₹4.995 = ₹4,99,50,000', cumulative: '₹5,60,79,864' },
+  { level: 8, percent: 0.25, amount999: 2.4975, label: 'Level 8 Team', members: '10,00,00,000 Members', income: '10,00,00,000 x ₹2.4975 = ₹24,97,50,000', cumulative: '₹30,58,29,864' },
+  { level: 9, percent: 0.25, amount999: 2.4975, label: 'Level 9 Team', members: '1,00,00,00,000 Members', income: '1,00,00,00,000 x ₹2.4975 = ₹2,49,75,00,000', cumulative: '₹2,80,33,29,864' },
+  { level: 10, percent: 0.25, amount999: 2.4975, label: 'Level 10 Team', members: '10,00,00,00,000 Members', income: '10,00,00,00,000 x ₹2.4975 = ₹24,97,50,00,000', cumulative: '₹27,77,83,29,864' }
 ];
 
 const achievementClubs = [
@@ -762,8 +762,8 @@ function ReferralIncomePlan() {
             <div className="chain-row" key={item.level}>
               <span>{item.level}</span>
               <div>
-                <strong>Level {item.level}</strong>
-                <small>{item.level === 1 ? 'Direct Referral' : `Earn ${item.percent}%`}</small>
+                <strong>Level {item.level} · {item.percent}%</strong>
+                <small>{item.members} · {item.income}</small>
               </div>
             </div>
           ))}
@@ -1107,8 +1107,8 @@ function HierarchyPanel({ user }) {
           <h3>Earning Levels</h3>
           {commissionLevels.map((item) => (
             <div className="transaction-row" key={item.level}>
-              <span>Level {item.level} · {item.label}</span>
-              <strong>{item.percent}%</strong>
+              <span>Level {item.level} · {item.members}</span>
+              <strong>{item.percent}% · {item.cumulative}</strong>
             </div>
           ))}
         </article>
