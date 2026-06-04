@@ -1434,18 +1434,8 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
 
   useEffect(() => {
     if (!watching || isDirectVideo || canTrackYouTube) return undefined;
-    const timer = setInterval(() => {
-      setProgress((value) => {
-        if (value >= 100) {
-          clearInterval(timer);
-          return 100;
-        }
-        const next = Math.min(100, value + 2);
-        saveTaskProgress(userId, task.id, { percent: next, seconds: readTaskProgress(userId, task).seconds || 0 });
-        return next;
-      });
-    }, 900);
-    return () => clearInterval(timer);
+    saveTaskProgress(userId, task.id, { percent: progress, seconds: readTaskProgress(userId, task).seconds || 0 });
+    return undefined;
   }, [watching, isDirectVideo, canTrackYouTube, task.id, userId]);
 
   function onVideoProgress(event) {
@@ -1504,7 +1494,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
                 ) : embedUrl && canTrackYouTube ? (
                   <div className="youtube-frame" ref={youtubeMountRef} />
                 ) : embedUrl ? (
-                  <iframe src={embedUrl} title={task.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                  <iframe src={embedUrl} title={task.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
                 ) : (
                   <div className="video-placeholder task-link-runner">
                     {platformIcon}
@@ -1514,6 +1504,12 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
                   </div>
                 )}
               </div>
+              {embedUrl && !isDirectVideo && !canTrackYouTube && !isCompleted && (
+                <div className="task-embed-actions">
+                  <button type="button" className="ghost" onClick={openExternalTask}>Open outside</button>
+                  <button type="button" className="primary" onClick={() => completeWatch(readTaskProgress(userId, task).seconds || 0)}>Mark Task Completed</button>
+                </div>
+              )}
               <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
               <div className="progress-meta"><span>{progress}% completed</span><span>{progress >= 100 ? 'Completed' : 'Complete the task to move progress'}</span></div>
             </div>
@@ -1546,13 +1542,22 @@ function getEmbedUrl(url) {
   try {
     const parsed = new URL(url);
     if (parsed.hostname.includes('youtube.com')) {
-      const id = parsed.searchParams.get('v');
+      const id = getYouTubeId(url);
       return id ? `https://www.youtube.com/embed/${id}` : url;
     }
     if (parsed.hostname.includes('youtu.be')) {
-      return `https://www.youtube.com/embed/${parsed.pathname.replace('/', '')}`;
+      const id = getYouTubeId(url);
+      return id ? `https://www.youtube.com/embed/${id}` : url;
     }
-    return '';
+    if (parsed.hostname.includes('instagram.com')) {
+      const cleanPath = parsed.pathname.replace(/\/$/, '');
+      if (/\/(p|reel|tv)\//.test(cleanPath)) return `https://www.instagram.com${cleanPath}/embed`;
+      return url;
+    }
+    if (parsed.hostname.includes('facebook.com') || parsed.hostname.includes('fb.watch')) {
+      return url;
+    }
+    return url;
   } catch {
     return '';
   }

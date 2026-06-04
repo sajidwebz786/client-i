@@ -1168,6 +1168,19 @@ button {
   padding: 10px 18px;
 }
 
+.task-embed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.task-embed-actions .primary,
+.task-embed-actions .ghost {
+  min-height: 40px;
+  padding: 9px 16px;
+}
+
 .progress-meta {
   display: flex;
   align-items: center;
