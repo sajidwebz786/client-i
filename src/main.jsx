@@ -135,6 +135,10 @@ function syncTaskProgress(userId, taskId, progress, date = todayKey()) {
     percent,
     seconds: Number(progress.seconds || 0),
     taskDate: date
+  }).then(() => {
+    if (percent >= 100) {
+      window.dispatchEvent(new CustomEvent('luminateads-wallet-refresh'));
+    }
   }).catch(() => {
     progressSyncCache.delete(key);
   });
@@ -150,9 +154,9 @@ function getTaskProgressSummary(userId, tasks = []) {
 }
 
 const demoPackages = [
-  { id: 'pkg-1', name: '₹999 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 15, dailyAdsRequired: 15, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
-  { id: 'pkg-2', name: '₹1,999 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 30, dailyAdsRequired: 30, dailyWorkMinutes: 60, monthlyGenerationAmount: 500, dailyDebitAmount: 16.67, freeBannerCount: 2 },
-  { id: 'pkg-3', name: '₹2,999 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 700, dailyDebitAmount: 23.33, freeBannerCount: 3 }
+  { id: 'pkg-1', name: '₹999 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
+  { id: 'pkg-2', name: '₹1,999 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 40, dailyAdsRequired: 40, dailyWorkMinutes: 60, monthlyGenerationAmount: 600, dailyDebitAmount: 20, freeBannerCount: 2 },
+  { id: 'pkg-3', name: '₹2,999 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 900, dailyDebitAmount: 30, freeBannerCount: 3 }
 ];
 
 const demoTasks = [
@@ -337,6 +341,28 @@ function App() {
   const tasks = useApiData(isLoggedIn ? '/tasks' : null, demoTasks, (data) => data.tasks || demoTasks);
   const wallet = useApiData(isLoggedIn ? '/wallet' : null, { wallet: { totalEarned: 0, availableBalance: 0, withdrawnAmount: 0 }, transactions: [] }, (data) => data);
   const publicHome = useApiData('/public/home', { banners: [], packages: demoPackages, latestTasks: demoTasks }, (data) => data);
+
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
+    let cancelled = false;
+    const refreshWallet = () => {
+      api.get('/wallet', { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
+        .then((res) => {
+          if (!cancelled) wallet.setData(res.data);
+        })
+        .catch(() => {});
+      api.get('/tasks', { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
+        .then((res) => {
+          if (!cancelled) tasks.setData(res.data.tasks || []);
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('luminateads-wallet-refresh', refreshWallet);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('luminateads-wallet-refresh', refreshWallet);
+    };
+  }, [isLoggedIn, wallet.setData, tasks.setData]);
 
   const navItems = [
     ['home', 'Home'],
@@ -647,25 +673,25 @@ function DailyAdIncomePlan({ packages }) {
       <div className="income-plan-head">
         <div>
           <span className="section-kicker">Daily Advertisement Task Income Plan</span>
-          <h2>Complete daily ads to protect monthly generation.</h2>
+          <h2>Complete daily ads to earn monthly rewards.</h2>
         </div>
       </div>
       <div className="commission-table panel">
         <div className="commission-header">
           <span>Plan</span>
-          <span>Daily Work</span>
-          <span>Monthly</span>
+          <span>Ads / Month</span>
+          <span>Value / Ad</span>
         </div>
         {packages.map((pkg) => (
           <div className="commission-row" key={pkg.id}>
             <span>{pkg.name} · {dailyAds(pkg)} ads</span>
-            <strong>{pkg.dailyWorkMinutes || 0} min</strong>
-            <strong>{money(pkg.monthlyGenerationAmount)}</strong>
+            <strong>{dailyAds(pkg) * 30}</strong>
+            <strong>{money(perAdValue(pkg))}</strong>
           </div>
         ))}
         <div className="commission-total">
-          <span>Missing a full daily assignment creates an automatic debit.</span>
-          <strong>Daily debit as per plan</strong>
+          <span>Monthly earnings are calculated on a 30-day cycle.</span>
+          <strong>₹0.50 per ad</strong>
         </div>
       </div>
     </div>
