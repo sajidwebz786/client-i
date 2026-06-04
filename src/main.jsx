@@ -202,6 +202,15 @@ function getMonthlyCalendar(date = new Date()) {
   };
 }
 
+function calendarStatusLabel(status) {
+  return {
+    completed: 'Done',
+    progress: 'Today',
+    missed: 'Missed',
+    pending: 'Upcoming'
+  }[status] || 'Upcoming';
+}
+
 function packageTax(pkg) {
   return Number(pkg.taxAmount || 0);
 }
@@ -478,7 +487,7 @@ function App() {
         <div className="footer-main">
           <div className="footer-brand">
             <img className="footer-logo" src={logo} alt="Luminate Ads" />
-            <p>Smart ads, brighter results. A structured advertising and referral platform for daily ad tasks, hierarchy growth, and admin-managed payouts.</p>
+            <p>Smart ads, brighter results. A structured advertising and referral platform for daily ad tasks, hierarchy growth, and clear payout tracking.</p>
           </div>
           <div className="footer-col">
             <strong>Platform</strong>
@@ -494,9 +503,9 @@ function App() {
           </div>
           <div className="footer-col">
             <strong>Support</strong>
-            <span>Payments and approvals</span>
+            <span>Payment updates</span>
             <span>Bank change permission</span>
-            <span>Task proof review</span>
+            <span>Task completion tracking</span>
           </div>
         </div>
         <div className="footer-bottom">
@@ -717,10 +726,10 @@ function ReferralIncomePlan() {
         <article className="panel">
           <h3>How It Works</h3>
           {[
-            'Invite a member directly and receive 10% after approval.',
+            'Invite a member directly and receive 10% after their joining is confirmed.',
             'When your referred member invites others, income is paid by level.',
             'Income is paid up to Level 10 as per the commission structure.',
-            'If someone joins without a referral, income goes to the admin / office wallet automatically.'
+            'If someone joins without a referral, income is handled by the office account automatically.'
           ].map((text, index) => (
             <div className="plan-step" key={text}>
               <span>{index + 1}</span>
@@ -1238,7 +1247,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
             ) : (
               <button className={`calendar-day ${item.status}`} key={item.key}>
                 <strong>{item.day}</strong>
-                <span>{item.status}</span>
+                <span>{calendarStatusLabel(item.status)}</span>
                 <small>{item.count} ads</small>
               </button>
             )
@@ -1263,9 +1272,9 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
             setWatchLockMessage={setWatchLockMessage}
           />
         ) : sortedTasks.length ? (
-          <p className="muted">All available tasks are completed for today. Admin can now review today’s activity.</p>
+          <p className="muted">All available tasks are completed for today. Your activity is ready for payout tracking.</p>
         ) : (
-          <p className="muted">No active tasks are available right now. New ad tasks posted by admin will appear here automatically.</p>
+          <p className="muted">No active tasks are available right now. New ad tasks will appear here automatically.</p>
         )}
       </div>
     </section>
@@ -1459,7 +1468,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
             <div>
               <strong>{task.title}</strong>
               <p>{task.description}</p>
-              <small>{platformLabel} · status {progress >= 100 ? 'completed' : progress > 0 ? 'in progress' : 'pending'}</small>
+              <small>{platformLabel} · {progress >= 100 ? 'Completed' : progress > 0 ? 'In progress' : 'Ready'}</small>
               <div className={`video-player ${isLocked ? 'locked' : ''}`} onClick={() => {
                 if (!requestWatchStart()) return;
                 setWatching(true);
@@ -1562,7 +1571,7 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
       await api.put('/wallet/bank-details', bank);
       setNotice('Bank details saved and locked for security.');
     } catch (err) {
-      setNotice(err.response?.data?.message || 'Admin permission is required to edit bank details.');
+      setNotice(err.response?.data?.message || 'Please contact support to change saved bank details.');
     }
   }
 
@@ -1596,7 +1605,7 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
         </article>
         <article className="panel">
           <h3>Bank Details</h3>
-          <p className="muted">Bank details can be submitted once. Later changes require admin approval.</p>
+          <p className="muted">Bank details can be submitted once. For later changes, please contact support.</p>
           <div className="form-grid">
             <input placeholder="Bank name" value={bank.bankName} onChange={(e) => setBank({ ...bank, bankName: e.target.value })} />
             <input placeholder="Account holder name" value={bank.accountHolderName} onChange={(e) => setBank({ ...bank, accountHolderName: e.target.value })} />
