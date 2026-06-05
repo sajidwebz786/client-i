@@ -2031,12 +2031,15 @@ select:focus {
     font-weight: 850;
   }
 
-  .top-actions .primary,
-  .top-actions .ghost {
+  .top-actions .primary {
     display: inline-flex;
     min-height: 38px;
     padding: 8px 11px;
     font-size: 0.88rem;
+  }
+
+  .top-actions .ghost {
+    display: none;
   }
 
   .hero {
