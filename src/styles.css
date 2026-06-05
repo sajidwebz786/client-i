@@ -109,6 +109,10 @@ button {
   background: var(--mint);
 }
 
+.mobile-logout {
+  display: none;
+}
+
 .top-actions,
 .hero-actions,
 .share-row,
@@ -2012,7 +2016,19 @@ select:focus {
   }
 
   .nav button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     text-align: left;
+  }
+
+  .mobile-logout {
+    display: flex;
+    margin-top: 6px;
+    border: 1px solid var(--line);
+    color: #dc2626;
+    background: #fff7f7;
+    font-weight: 850;
   }
 
   .top-actions .primary,

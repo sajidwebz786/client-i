@@ -471,6 +471,11 @@ function App() {
               {label}
             </button>
           ))}
+          {isLoggedIn && (
+            <button className="mobile-logout" onClick={() => { setMenuOpen(false); logout(); }}>
+              <LogOut size={17} /> Logout
+            </button>
+          )}
         </nav>
         <div className="top-actions">
           {isLoggedIn ? (
