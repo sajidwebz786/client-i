@@ -2015,9 +2015,12 @@ select:focus {
     text-align: left;
   }
 
-  .top-actions .ghost,
-  .top-actions .primary {
-    display: none;
+  .top-actions .primary,
+  .top-actions .ghost {
+    display: inline-flex;
+    min-height: 38px;
+    padding: 8px 11px;
+    font-size: 0.88rem;
   }
 
   .hero {
