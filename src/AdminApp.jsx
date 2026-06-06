@@ -1,0 +1,1228 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import {
+  BadgeIndianRupee,
+  Bell,
+  Bike,
+  Boxes,
+  Car,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardCheck,
+  Contact,
+  CreditCard,
+  FileBarChart,
+  Gem,
+  Gift,
+  Image,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  Menu,
+  PackagePlus,
+  QrCode,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Smartphone,
+  Ticket,
+  TreePine,
+  UploadCloud,
+  Users,
+  Wallet,
+  XCircle
+} from 'lucide-react';
+import './admin-styles.css';
+import logo from './images/logo.png';
+import paymentQrImage from './images/qrcode.jpeg';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BRAND_NAME = 'Luminate Ads';
+const PAYMENT_TERMINAL = 'Terminal 3-Q155769084';
+const api = axios.create({ baseURL: API_URL });
+const ASSET_ORIGIN = API_URL.replace(/\/api\/?$/, '');
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('luminateads_admin_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
+
+function cleanFileName(value) {
+  return String(value || 'report').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function reportTableHtml(title, columns, rows) {
+  const logoUrl = new URL(logo, window.location.origin).href;
+  const head = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('');
+  const body = rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('');
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+          .report-header { display: flex; align-items: center; gap: 18px; margin: 0 0 20px; padding-bottom: 14px; border-bottom: 2px solid #f59e0b; }
+          .report-logo { width: 190px; max-height: 58px; object-fit: contain; }
+          .report-title { display: grid; gap: 4px; }
+          .report-title span { color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+          h1 { font-size: 22px; margin: 0; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #d8dee8; padding: 8px; text-align: left; font-size: 12px; }
+          th { background: #f3f6fb; }
+        </style>
+      </head>
+      <body>
+        <div class="report-header">
+          <img class="report-logo" src="${escapeHtml(logoUrl)}" alt="${escapeHtml(BRAND_NAME)}" />
+          <div class="report-title">
+            <span>${escapeHtml(BRAND_NAME)}</span>
+            <h1>${escapeHtml(title)}</h1>
+          </div>
+        </div>
+        <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+      </body>
+    </html>`;
+}
+
+function exportExcel(title, columns, rows) {
+  const blob = new Blob([reportTableHtml(title, columns, rows)], { type: 'application/vnd.ms-excel' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${cleanFileName(title)}.xls`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function exportPdf(title, columns, rows) {
+  const popup = window.open('', '_blank');
+  if (!popup) return;
+  popup.document.write(reportTableHtml(title, columns, rows));
+  popup.document.close();
+  popup.focus();
+  popup.print();
+}
+
+function absoluteAssetUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${ASSET_ORIGIN}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function dailyAds(pkg) {
+  return Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
+}
+
+function dailyIncome(pkg) {
+  return Number(pkg.monthlyGenerationAmount || 0) / 30;
+}
+
+function perAdValue(pkg) {
+  const ads = dailyAds(pkg);
+  return ads ? dailyIncome(pkg) / ads : 0;
+}
+
+const commissionLevels = [
+  { level: 1, percent: 10, amount999: 99.9, label: 'Direct Referral', members: '10 Members', income: '10 x ₹99.90 = ₹999', cumulative: '₹999' },
+  { level: 2, percent: 5, amount999: 49.95, label: 'Level 2 Team', members: '100 Members', income: '100 x ₹49.95 = ₹4,995', cumulative: '₹5,994' },
+  { level: 3, percent: 3, amount999: 29.97, label: 'Level 3 Team', members: '1,000 Members', income: '1,000 x ₹29.97 = ₹29,970', cumulative: '₹35,964' },
+  { level: 4, percent: 1, amount999: 9.99, label: 'Level 4 Team', members: '10,000 Members', income: '10,000 x ₹9.99 = ₹99,900', cumulative: '₹1,35,864' },
+  { level: 5, percent: 1, amount999: 9.99, label: 'Level 5 Team', members: '1,00,000 Members', income: '1,00,000 x ₹9.99 = ₹9,99,000', cumulative: '₹11,34,864' },
+  { level: 6, percent: 0.5, amount999: 4.995, label: 'Level 6 Team', members: '10,00,000 Members', income: '10,00,000 x ₹4.995 = ₹49,95,000', cumulative: '₹61,29,864' },
+  { level: 7, percent: 0.5, amount999: 4.995, label: 'Level 7 Team', members: '1,00,00,000 Members', income: '1,00,00,000 x ₹4.995 = ₹4,99,50,000', cumulative: '₹5,60,79,864' },
+  { level: 8, percent: 0.25, amount999: 2.4975, label: 'Level 8 Team', members: '10,00,00,000 Members', income: '10,00,00,000 x ₹2.4975 = ₹24,97,50,000', cumulative: '₹30,58,29,864' },
+  { level: 9, percent: 0.25, amount999: 2.4975, label: 'Level 9 Team', members: '1,00,00,00,000 Members', income: '1,00,00,00,000 x ₹2.4975 = ₹2,49,75,00,000', cumulative: '₹2,80,33,29,864' },
+  { level: 10, percent: 0.25, amount999: 2.4975, label: 'Level 10 Team', members: '10,00,00,00,000 Members', income: '10,00,00,00,000 x ₹2.4975 = ₹24,97,50,00,000', cumulative: '₹27,77,83,29,864' }
+];
+
+const achievementClubs = [
+  { name: 'Bronze Club', members: '1,000 members', benefit: 'Mobile, fridge, AC, TV, or any electric item', Icon: Smartphone },
+  { name: 'Silver Club', members: '10,000 members', benefit: 'Bike benefit', Icon: Bike },
+  { name: 'Gold Club', members: '1,00,000 members', benefit: 'Car benefit', Icon: Car },
+  { name: 'Platinum Club', members: '10,00,000 members', benefit: 'House flat or ₹25 lakh benefit', Icon: Boxes },
+  { name: 'Diamond Club', members: '100,00,000 members', benefit: 'Villa flat benefit', Icon: Gem }
+];
+
+const demo = {
+  totals: {
+    totalUsers: 0,
+    activeUsers: 0,
+    pendingUsers: 0,
+    packageSales: 0,
+    pendingPaymentAmount: 0,
+    totalIncome: 0,
+    pendingWithdrawals: 0,
+    pendingTaskApprovals: 0,
+    openTickets: 0
+  },
+  users: [],
+  packages: [],
+  payments: [],
+  tasks: [],
+  withdrawals: [],
+  submissions: [],
+  tickets: [],
+  reports: {
+    incomeByType: [],
+    withdrawalsByStatus: [],
+    recentTransactions: [],
+    profitSnapshot: {},
+    dailyBusiness: [],
+    packagePerformance: [],
+    distributionReport: [],
+    withdrawalReport: []
+  },
+  banners: []
+};
+
+export default function AdminApp() {
+  const [active, setActive] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [admin, setAdmin] = useState(() => JSON.parse(localStorage.getItem('luminateads_admin_user') || 'null'));
+  const [token, setToken] = useState(localStorage.getItem('luminateads_admin_token'));
+  const [notice, setNotice] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  const data = useAdminData(Boolean(token), refresh);
+
+  function saveSession(payload) {
+    localStorage.setItem('luminateads_admin_token', payload.token);
+    localStorage.setItem('luminateads_admin_user', JSON.stringify(payload.user));
+    setToken(payload.token);
+    setAdmin(payload.user);
+    setNotice('Admin session started.');
+  }
+
+  function logout() {
+    localStorage.removeItem('luminateads_admin_token');
+    localStorage.removeItem('luminateads_admin_user');
+    setToken(null);
+    setAdmin(null);
+  }
+
+  if (!token) return <LoginScreen onSession={saveSession} />;
+
+  const nav = [
+    ['dashboard', 'Dashboard', LayoutDashboard],
+    ['users', 'Users', Users],
+    ['hierarchy', 'Hierarchy', TreePine],
+    ['packages', 'Packages', Boxes],
+    ['payments', 'Payments', CreditCard],
+    ['tasks', 'Tasks', ClipboardCheck],
+    ['withdrawals', 'Withdrawals', Wallet],
+    ['support', 'Support', Ticket],
+    ['reports', 'Reports', FileBarChart],
+    ['content', 'Content', Image],
+    ['notifications', 'Notifications', Bell]
+  ];
+
+  return (
+    <div className="admin-shell">
+      <aside className={sidebarOpen ? 'sidebar open' : 'sidebar'}>
+        <div className="brand">
+          <img className="brand-logo" src={logo} alt="Luminate Ads" />
+        </div>
+        <nav>
+          {nav.map(([key, label, Icon]) => (
+            <button key={key} className={active === key ? 'active' : ''} onClick={() => { setActive(key); setSidebarOpen(false); }}>
+              <Icon size={18} /> {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <main className="workspace">
+        <header className="admin-topbar">
+          <button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)} title="Menu"><Menu size={20} /></button>
+          <div>
+            <span className="kicker">Luminate Ads Admin Portal</span>
+            <h1>{nav.find(([key]) => key === active)?.[1]}</h1>
+          </div>
+          <div className="admin-actions">
+            <div className="admin-chip"><ShieldCheck size={16} /> {admin?.name || 'Admin'}</div>
+            <button className="ghost" onClick={logout}><LogOut size={17} /> Logout</button>
+          </div>
+        </header>
+
+        {notice && <div className="toast" onAnimationEnd={() => setNotice('')}>{notice}</div>}
+
+        {active === 'dashboard' && <Dashboard data={data} />}
+        {active === 'users' && <UsersPage users={data.users} onRefresh={() => setRefresh((x) => x + 1)} />}
+        {active === 'hierarchy' && <HierarchyPage users={data.users} admin={admin} />}
+        {active === 'packages' && <PackagesPage packages={data.packages} onRefresh={() => setRefresh((x) => x + 1)} />}
+        {active === 'payments' && <PaymentsPage payments={data.payments} onRefresh={() => setRefresh((x) => x + 1)} />}
+        {active === 'tasks' && <TasksPage tasks={data.tasks} submissions={data.submissions} packages={data.packages} onRefresh={() => setRefresh((x) => x + 1)} />}
+        {active === 'withdrawals' && <WithdrawalsPage withdrawals={data.withdrawals} onRefresh={() => setRefresh((x) => x + 1)} />}
+        {active === 'support' && <SupportPage tickets={data.tickets} />}
+        {active === 'reports' && <ReportsPage reports={data.reports} />}
+        {active === 'content' && <ContentPage banners={data.banners} onRefresh={() => setRefresh((x) => x + 1)} />}
+        {active === 'notifications' && <NotificationsPage />}
+      </main>
+    </div>
+  );
+}
+
+function useAdminData(enabled, refresh) {
+  const [data, setData] = useState(demo);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let mounted = true;
+    Promise.allSettled([
+      api.get('/admin/dashboard'),
+      api.get('/admin/users'),
+      api.get('/packages'),
+      api.get('/tasks'),
+      api.get('/payments/admin'),
+      api.get('/withdrawals/admin'),
+      api.get('/tasks/admin/submissions'),
+      api.get('/support/admin'),
+      api.get('/admin/reports'),
+      api.get('/admin/banners')
+    ]).then((results) => {
+      if (!mounted) return;
+      setData({
+        totals: results[0].value?.data?.totals || demo.totals,
+        users: results[1].value?.data?.users || [],
+        packages: results[2].value?.data?.packages || [],
+        tasks: results[3].value?.data?.tasks || [],
+        payments: results[4].value?.data?.payments || [],
+        withdrawals: results[5].value?.data?.withdrawals || [],
+        submissions: results[6].value?.data?.submissions || [],
+        tickets: results[7].value?.data?.tickets || [],
+        reports: results[8].value?.data || demo.reports,
+        banners: results[9].value?.data?.banners || []
+      });
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [enabled, refresh]);
+
+  return data;
+}
+
+function LoginScreen({ onSession }) {
+  const [form, setForm] = useState({ identifier: 'admin@luminateads.com', password: 'Admin@12345' });
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.post('/auth/login', form);
+      if (res.data.user?.role !== 'admin') throw new Error('Admin role required');
+      onSession(res.data);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Unable to login');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="login-page">
+      <section className="login-visual">
+        <div className="login-copy">
+          <span className="kicker">Operations Control</span>
+          <h1>Luminate Ads Admin Portal</h1>
+          <p>Approve payments, verify daily ad tasks, control packages, handle withdrawals, monitor hierarchy, and manage secure payout operations.</p>
+        </div>
+      </section>
+      <section className="login-card">
+        <div className="brand login-brand">
+          <img className="brand-logo" src={logo} alt="Luminate Ads" />
+        </div>
+        <h2>Admin Sign In</h2>
+        <form onSubmit={submit}>
+          <label>Email or mobile<input value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} /></label>
+          <label>Password<input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>
+          {error && <p className="error">{error}</p>}
+          <button className="primary" disabled={busy}><LogIn size={18} /> {busy ? 'Signing in...' : 'Sign In'}</button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function Dashboard({ data }) {
+  const cards = [
+    ['Total Users', data.totals.totalUsers, Users],
+    ['Active Users', data.totals.activeUsers, CheckCircle2],
+    ['Collected Amount', money(data.totals.packageSales), BadgeIndianRupee],
+    ['Distributed Rewards', money(data.totals.totalIncome), Wallet],
+    ['Current Profit Zone', money(data.totals.profitAmount), FileBarChart],
+    ['Pending Collection', money(data.totals.pendingPaymentAmount), CreditCard],
+    ['Pending Withdrawals', data.totals.pendingWithdrawals, Wallet],
+    ['Task Approvals', data.totals.pendingTaskApprovals, ClipboardCheck],
+    ['Open Tickets', data.totals.openTickets, Ticket]
+  ];
+
+  return (
+    <section className="page-grid">
+      <div className="stat-grid">
+        {cards.map(([label, value, Icon]) => (
+          <article className="stat-card" key={label}>
+            <Icon size={22} />
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </article>
+        ))}
+      </div>
+      <div className="two-col">
+        <Panel title="Approval Priorities" icon={SlidersHorizontal}>
+          <QueueRow label="Pending payments" value={data.totals.pendingPayments || 0} tone="gold" />
+          <QueueRow label="Task screenshots" value={data.totals.pendingTaskApprovals || 0} tone="green" />
+          <QueueRow label="Withdrawal requests" value={data.totals.pendingWithdrawals || 0} tone="coral" />
+        </Panel>
+        <Panel title="Business Snapshot" icon={FileBarChart}>
+          <div className="snapshot">
+            <span>Current profit zone</span>
+            <strong>{money(data.totals.profitAmount)}</strong>
+            <p>Approved collections minus credited customer rewards. Cash after paid withdrawals: {money(data.totals.cashAfterPaidWithdrawals)}.</p>
+          </div>
+        </Panel>
+      </div>
+      <AdminPlanSummary />
+      <DailyDebitRunner />
+    </section>
+  );
+}
+
+function AdminPlanSummary() {
+  return (
+    <div className="two-col plan-overview">
+      <Panel title="Referral Commission Structure" icon={TreePine}>
+        <div className="commission-grid">
+          {commissionLevels.map((item) => (
+            <div className="commission-cell" key={item.level}>
+              <span>Level {item.level}</span>
+              <strong>{item.percent}%</strong>
+              <small>{item.members} · {item.income}</small>
+            </div>
+          ))}
+        </div>
+        <div className="total-band">
+          <span>Network example cumulative earnings</span>
+          <strong>₹27,77,83,29,864</strong>
+        </div>
+      </Panel>
+      <Panel title="Payment QR Reference" icon={QrCode}>
+        <div className="admin-qr-card">
+          <img className="admin-qr-img" src={paymentQrImage} alt="Payment QR code" />
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function DailyDebitRunner() {
+  const [date, setDate] = useState(() => {
+    const value = new Date();
+    value.setDate(value.getDate() - 1);
+    return value.toISOString().slice(0, 10);
+  });
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function runDebit() {
+    setBusy(true);
+    try {
+      const res = await api.post('/admin/daily-debits/run', { date });
+      setResult(res.data);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel title="Daily Advertisement Debit" icon={ClipboardCheck}>
+      <div className="payment-reference-row">
+        <div className="stack">
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          <button className="primary" onClick={runDebit} disabled={busy}>{busy ? 'Running...' : 'Run Missed-Day Debit'}</button>
+        </div>
+        <div className="payment-checks">
+          <QueueRow label="Processed users" value={result?.processed ?? '-'} tone="gold" />
+          <QueueRow label="Debited users" value={result?.debited ?? '-'} tone="coral" />
+          <QueueRow label="Skipped users" value={result?.skipped ?? '-'} tone="green" />
+        </div>
+      </div>
+      {result?.message && <p className="error">{result.message}</p>}
+      {result?.results?.length ? (
+        <DataTable
+          columns={['User', 'Plan', 'Ads', 'Status', 'Debit']}
+          rows={result.results.slice(0, 20).map((item) => [
+            item.name,
+            item.packageName,
+            `${item.completedAds}/${item.requiredAds}`,
+            <Badge tone={item.status === 'debited' ? 'coral' : 'green'}>{item.status}</Badge>,
+            money(item.debitAmount)
+          ])}
+          empty="No debit results."
+        />
+      ) : null}
+    </Panel>
+  );
+}
+
+function UsersPage({ users, onRefresh }) {
+  function approvedPlanNames(user) {
+    const names = (user.payments || [])
+      .filter((payment) => payment.status === 'approved' && payment.package?.name)
+      .map((payment) => payment.package.name);
+    return [...new Set(names)].join(', ') || user.package?.name || 'Not selected';
+  }
+
+  async function editUser(user) {
+    const name = window.prompt('Edit member name', user.name);
+    if (!name) return;
+    const mobile = window.prompt('Edit mobile number', user.mobile || '') || user.mobile;
+    await api.put(`/admin/users/${user.id}`, { name, mobile });
+    onRefresh();
+  }
+
+  async function resetPassword(user) {
+    const password = window.prompt(`New password for ${user.name}`);
+    if (!password) return;
+    await api.put(`/admin/users/${user.id}/reset-password`, { password });
+    onRefresh();
+  }
+
+  return (
+    <Panel title="Member Management" icon={Users} action={<SearchBox />}>
+      <DataTable
+        columns={['Name', 'Contact', 'Approved Plans', 'Sponsor', 'Status', 'Action']}
+        rows={users.map((user) => [
+          user.name,
+          `${user.email || ''}\n${user.mobile || ''}`,
+          approvedPlanNames(user),
+          user.sponsor?.name || 'Direct',
+          <Badge tone={user.status === 'active' ? 'green' : user.status === 'blocked' ? 'coral' : 'gold'}>{user.status}</Badge>,
+          <div className="row-actions">
+            <button className="mini" onClick={() => editUser(user)}>Edit</button>
+            <button className="mini" onClick={async () => { await api.put(`/admin/users/${user.id}`, { status: user.status === 'active' ? 'inactive' : 'active' }); onRefresh(); }}>{user.status === 'active' ? 'Inactive' : 'Activate'}</button>
+            <button className="mini" onClick={async () => { await api.put(`/admin/users/${user.id}`, { status: 'active', isMobileVerified: true, isEmailVerified: true }); onRefresh(); }}>Permission</button>
+            <button className="mini" onClick={() => resetPassword(user)}>Password</button>
+            {user.status === 'blocked' ? (
+              <button className="mini approve" onClick={async () => { await api.put(`/admin/users/${user.id}`, { status: 'active', isMobileVerified: true, isEmailVerified: true }); onRefresh(); }}>Restore</button>
+            ) : (
+              <button className="mini reject" onClick={async () => { if (window.confirm(`Block login for ${user.name}?`)) { await api.delete(`/admin/users/${user.id}`); onRefresh(); } }}>Block</button>
+            )}
+          </div>
+        ])}
+        empty="No users yet."
+      />
+    </Panel>
+  );
+}
+
+function HierarchyPage({ users, admin }) {
+  const hierarchyUsers = useMemo(() => {
+    const list = admin?.id ? [admin, ...users] : users;
+    return list.filter((user, index, rows) => user?.id && rows.findIndex((item) => item.id === user.id) === index);
+  }, [admin, users]);
+  const [selectedUserId, setSelectedUserId] = useState(hierarchyUsers[0]?.id || '');
+  const [tree, setTree] = useState(null);
+  const [downline, setDownline] = useState([]);
+
+  useEffect(() => {
+    if (!selectedUserId && hierarchyUsers[0]?.id) setSelectedUserId(hierarchyUsers[0].id);
+  }, [hierarchyUsers, selectedUserId]);
+
+  useEffect(() => {
+    if (!selectedUserId) return;
+    let mounted = true;
+    Promise.allSettled([
+      api.get(`/referrals/admin/${selectedUserId}/tree`),
+      api.get(`/referrals/admin/${selectedUserId}/downline`)
+    ]).then((results) => {
+      if (!mounted) return;
+      setTree(results[0].value?.data?.tree || null);
+      setDownline(results[1].value?.data?.referrals || []);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [selectedUserId]);
+
+  const selectedUser = hierarchyUsers.find((user) => user.id === selectedUserId);
+  const treeData = tree || buildDemoHierarchy(selectedUser);
+
+  return (
+    <div className="hierarchy-admin-layout">
+      <Panel title="Profile Hierarchy" icon={TreePine}>
+        <div className="stack">
+          <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
+            <option value="">Select profile</option>
+            {hierarchyUsers.map((user) => <option key={user.id} value={user.id}>{user.role === 'admin' ? 'Admin / Office' : user.name} · {user.referralCode}</option>)}
+          </select>
+          <div className="hierarchy-summary">
+            <TreePine size={28} />
+            <h3>{selectedUser?.name || tree?.name || 'Select a profile'}</h3>
+            <p>Invite code: <strong>{selectedUser?.referralCode || tree?.referralCode || '-'}</strong></p>
+            <p>Direct referrals: <strong>{downline.filter((item) => item.level === 1).length}</strong></p>
+            <p>Total hierarchy count: <strong>{downline.length}</strong></p>
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Hierarchy Tree View" icon={TreePine}>
+        <div className="admin-tree-wrap">
+          <HierarchyTree node={treeData} root />
+        </div>
+      </Panel>
+      <Panel title="Hierarchy Order" icon={Users}>
+        <DataTable
+          columns={['Level', 'Name', 'Code', 'Status']}
+          rows={downline.map((item) => [
+            `Level ${item.level}`,
+            item.child?.name || 'Member',
+            item.child?.referralCode || '-',
+            <Badge tone={item.child?.status === 'active' ? 'green' : 'gold'}>{item.child?.status || '-'}</Badge>
+          ])}
+          empty="No hierarchy records for this profile yet."
+        />
+      </Panel>
+    </div>
+  );
+}
+
+function buildDemoHierarchy(user) {
+  return {
+    name: user?.name || 'Selected Profile',
+    referralCode: user?.referralCode || 'YOU',
+    directReferrals: [
+      {
+        name: 'Member A',
+        referralCode: '1',
+        directReferrals: [
+          { name: 'Member C', referralCode: '5', directReferrals: [{ name: 'Member G', referralCode: '9', directReferrals: [] }] },
+          { name: 'Member D', referralCode: '3', directReferrals: [{ name: 'Member H', referralCode: '7', directReferrals: [] }] }
+        ]
+      },
+      {
+        name: 'Member B',
+        referralCode: '2',
+        directReferrals: [
+          { name: 'Member E', referralCode: '4', directReferrals: [{ name: 'Member I', referralCode: '8', directReferrals: [] }] },
+          { name: 'Member F', referralCode: '6', directReferrals: [{ name: 'Member J', referralCode: '10', directReferrals: [] }] }
+        ]
+      }
+    ]
+  };
+}
+
+function HierarchyTree({ node, root = false }) {
+  const children = node?.directReferrals || [];
+  return (
+    <div className={root ? 'tree-node tree-root' : 'tree-node'}>
+      <div className={root ? 'tree-member root-member' : 'tree-member'}>
+        {root ? <Contact size={24} /> : <span>{node?.referralCode || '?'}</span>}
+        <strong>{node?.name || 'Member'}</strong>
+      </div>
+      {children.length > 0 && (
+        <div className="tree-children">
+          {children.slice(0, 4).map((child) => (
+            <HierarchyTree node={child} key={child.id || child.referralCode || child.name} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PackagesPage({ packages, onRefresh }) {
+  const emptyForm = { name: '', baseAmount: '', taxAmount: '0', finalAmount: '', dailyAdsRequired: '', dailyWorkMinutes: '', monthlyGenerationAmount: '', dailyDebitAmount: '', freeBannerCount: '', status: 'active' };
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState('');
+
+  async function createPackage(event) {
+    event.preventDefault();
+    const payload = {
+      name: form.name,
+      baseAmount: Number(form.baseAmount),
+      taxAmount: Number(form.taxAmount || 0),
+      finalAmount: Number(form.finalAmount || (Number(form.baseAmount || 0) + Number(form.taxAmount || 0))),
+      minAdsRequired: Number(form.dailyAdsRequired || 0),
+      dailyAdsRequired: Number(form.dailyAdsRequired || 0),
+      dailyWorkMinutes: Number(form.dailyWorkMinutes || 0),
+      monthlyGenerationAmount: Number(form.monthlyGenerationAmount || 0),
+      dailyDebitAmount: Number(form.dailyDebitAmount || 0),
+      freeBannerCount: Number(form.freeBannerCount || 0),
+      status: form.status
+    };
+    if (editingId) {
+      await api.put(`/packages/${editingId}`, payload);
+    } else {
+      await api.post('/packages', payload);
+    }
+    setForm(emptyForm);
+    setEditingId('');
+    onRefresh();
+  }
+
+  function editPackage(pkg) {
+    setEditingId(pkg.id);
+    setForm({
+      name: pkg.name || '',
+      baseAmount: pkg.baseAmount || '',
+      taxAmount: pkg.taxAmount || '',
+      finalAmount: pkg.finalAmount || '',
+      dailyAdsRequired: pkg.dailyAdsRequired || pkg.minAdsRequired || '',
+      dailyWorkMinutes: pkg.dailyWorkMinutes || '',
+      monthlyGenerationAmount: pkg.monthlyGenerationAmount || '',
+      dailyDebitAmount: pkg.dailyDebitAmount || '',
+      freeBannerCount: pkg.freeBannerCount ?? '',
+      status: pkg.status || 'active'
+    });
+  }
+
+  return (
+    <div className="page-grid">
+      <div className="two-col">
+        <Panel title="Packages" icon={Boxes}>
+          <DataTable
+            columns={['Name', 'Base', 'Tax', 'Final', 'Daily Policy', 'Monthly', 'Status', 'Action']}
+            rows={packages.map((pkg) => [
+              pkg.name,
+              money(pkg.baseAmount),
+              money(pkg.taxAmount),
+              money(pkg.finalAmount),
+              `${dailyAds(pkg)} ads / ${pkg.dailyWorkMinutes || 0} min / debit ${money(pkg.dailyDebitAmount)}`,
+              `${money(pkg.monthlyGenerationAmount)} · ${money(perAdValue(pkg))}/ad`,
+              <Badge tone={pkg.status === 'active' ? 'green' : 'gold'}>{pkg.status}</Badge>,
+              <div className="row-actions">
+                <button className="mini" onClick={() => editPackage(pkg)}>Edit</button>
+                <button className="mini" onClick={async () => { await api.patch(`/packages/${pkg.id}/status`, { status: pkg.status === 'active' ? 'inactive' : 'active' }); onRefresh(); }}>Status</button>
+                <button className="mini reject" onClick={async () => { if (window.confirm(`Deactivate ${pkg.name}?`)) { await api.delete(`/packages/${pkg.id}`); onRefresh(); } }}>Deactivate</button>
+              </div>
+            ])}
+            empty="No packages available."
+          />
+        </Panel>
+        <Panel title={editingId ? 'Edit Package' : 'Create Package'} icon={PackagePlus}>
+          <form className="stack" onSubmit={createPackage}>
+            <input required placeholder="Package name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <input required type="number" placeholder="Base amount" value={form.baseAmount} onChange={(e) => setForm({ ...form, baseAmount: e.target.value })} />
+            <input type="number" placeholder="GST tax amount" value={form.taxAmount} onChange={(e) => setForm({ ...form, taxAmount: e.target.value })} />
+            <input type="number" placeholder="Final amount (auto if blank)" value={form.finalAmount} onChange={(e) => setForm({ ...form, finalAmount: e.target.value })} />
+            <input required type="number" min="0" placeholder="Daily ads required" value={form.dailyAdsRequired} onChange={(e) => setForm({ ...form, dailyAdsRequired: e.target.value })} />
+            <input required type="number" min="0" placeholder="Daily work minutes" value={form.dailyWorkMinutes} onChange={(e) => setForm({ ...form, dailyWorkMinutes: e.target.value })} />
+            <input required type="number" min="0" placeholder="Monthly generation amount" value={form.monthlyGenerationAmount} onChange={(e) => setForm({ ...form, monthlyGenerationAmount: e.target.value })} />
+            <input required type="number" min="0" step="0.01" placeholder="Daily debit amount" value={form.dailyDebitAmount} onChange={(e) => setForm({ ...form, dailyDebitAmount: e.target.value })} />
+            <input type="number" min="0" placeholder="Free banner count" value={form.freeBannerCount} onChange={(e) => setForm({ ...form, freeBannerCount: e.target.value })} />
+            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option></select>
+            <button className="primary">{editingId ? 'Update Package' : 'Save Package'}</button>
+            {editingId && <button type="button" className="ghost" onClick={() => { setEditingId(''); setForm(emptyForm); }}>Cancel Edit</button>}
+          </form>
+        </Panel>
+      </div>
+      <AdminPlanSummary />
+      <Panel title="Daily Advertisement Income Plan" icon={BadgeIndianRupee}>
+        <DataTable
+          columns={['Plan', 'Daily Ads', 'Daily Income', 'Per Ad', 'Monthly', 'Debit']}
+          rows={packages.map((pkg) => [
+            pkg.name,
+            `${dailyAds(pkg)} ads / ${pkg.dailyWorkMinutes || 0} min`,
+            money(dailyIncome(pkg)),
+            money(perAdValue(pkg)),
+            money(pkg.monthlyGenerationAmount),
+            money(pkg.dailyDebitAmount)
+          ])}
+          empty="No plans configured."
+        />
+      </Panel>
+      <Panel title="Level Achievement Benefits" icon={Gift}>
+        <div className="achievement-grid">
+          {achievementClubs.map(({ name, members, benefit, Icon }) => (
+            <article className="achievement-card" key={name}>
+              <Icon size={24} />
+              <span>{members}</span>
+              <strong>{name}</strong>
+              <p>{benefit}</p>
+            </article>
+          ))}
+        </div>
+        <div className="total-band gift-band">
+          <span>Benefit One</span>
+          <strong>50 direct references within one month = ₹10,000 worth gift</strong>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function PaymentsPage({ payments, onRefresh }) {
+  async function decide(id, action) {
+    await api.put(`/payments/admin/${id}/${action}`, { adminRemarks: action === 'approve' ? 'Verified' : 'Rejected by admin' });
+    onRefresh();
+  }
+
+  return (
+    <div className="page-grid">
+      <Panel title="Payment QR Reference" icon={QrCode}>
+        <div className="payment-reference-row">
+          <div className="admin-qr-card compact">
+            <img className="admin-qr-img compact" src={paymentQrImage} alt="Payment QR code" />
+          </div>
+          <div className="payment-checks">
+            <QueueRow label="Check uploaded screenshot" value="Required" tone="gold" />
+            <QueueRow label="Match UTR / transaction number" value="Required" tone="green" />
+            <QueueRow label="Approve only after received amount" value="Manual" tone="coral" />
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Payment Approvals" icon={CreditCard} action={<SearchBox />}>
+        <DataTable
+          columns={['User', 'Package', 'Amount', 'Mode', 'UTR', 'Status', 'Action']}
+          rows={payments.map((payment) => [
+            payment.user?.name || 'Member',
+            payment.package?.name || '-',
+            money(payment.amount),
+            payment.paymentMode,
+            payment.utrNumber || '-',
+            <Badge tone={payment.status === 'approved' ? 'green' : payment.status === 'rejected' ? 'coral' : 'gold'}>{payment.status}</Badge>,
+            <ActionPair onApprove={() => decide(payment.id, 'approve')} onReject={() => decide(payment.id, 'reject')} disabled={payment.status !== 'pending'} />
+          ])}
+          empty="No payments found."
+        />
+      </Panel>
+    </div>
+  );
+}
+
+function TasksPage({ tasks, submissions, packages, onRefresh }) {
+  const emptyTask = { title: '', platform: 'youtube', taskUrl: '', description: '', rewardAmount: '0.5', packageId: '', status: 'active' };
+  const [task, setTask] = useState(emptyTask);
+  const [editingTaskId, setEditingTaskId] = useState('');
+
+  async function createTask(event) {
+    event.preventDefault();
+    const payload = {
+      ...task,
+      rewardAmount: Number(task.rewardAmount || 0),
+      packageId: task.packageId || null
+    };
+    if (editingTaskId) {
+      await api.put(`/tasks/${editingTaskId}`, payload);
+    } else {
+      await api.post('/tasks', payload);
+    }
+    setTask(emptyTask);
+    setEditingTaskId('');
+    onRefresh();
+  }
+
+  function editTask(item) {
+    setEditingTaskId(item.id);
+    setTask({
+      title: item.title || '',
+      platform: item.platform || 'youtube',
+      taskUrl: item.taskUrl || '',
+      description: item.description || '',
+      rewardAmount: item.rewardAmount || '',
+      packageId: item.packageId || '',
+      status: item.status || 'active'
+    });
+  }
+
+  async function decide(id, action) {
+    await api.put(`/tasks/admin/submissions/${id}/${action}`, { adminRemarks: action === 'approve' ? 'Task fully completed and verified' : 'Task is not fully completed. Please finish this task and try again.' });
+    onRefresh();
+  }
+
+  return (
+    <div className="two-col">
+      <Panel title="Task Library" icon={ClipboardCheck}>
+        <DataTable
+          columns={['Title', 'Platform', 'Reward', 'Status', 'Action']}
+          rows={tasks.map((item) => [
+            item.title,
+            item.platform,
+            money(item.rewardAmount),
+            <Badge tone={item.status === 'active' ? 'green' : 'gold'}>{item.status}</Badge>,
+            <div className="row-actions">
+              <button className="mini" onClick={() => editTask(item)}>Edit</button>
+              <button className="mini" onClick={async () => { await api.put(`/tasks/${item.id}`, { status: item.status === 'active' ? 'inactive' : 'active' }); onRefresh(); }}>Status</button>
+              <button className="mini reject" onClick={async () => { if (window.confirm(`Deactivate ${item.title}?`)) { await api.delete(`/tasks/${item.id}`); onRefresh(); } }}>Deactivate</button>
+            </div>
+          ])}
+          empty="No tasks created yet."
+        />
+      </Panel>
+      <Panel title="Task Completion Review" icon={ClipboardCheck}>
+        <DataTable
+          columns={['User', 'Task', 'Date', 'Progress', 'Reward', 'Status', 'Action']}
+          rows={submissions.map((item) => [
+            item.user?.name || 'Member',
+            item.task?.title || '-',
+            item.taskDate || '-',
+            `${Number(item.watchPercent || 0)}%`,
+            money(item.task?.rewardAmount),
+            <Badge tone={item.status === 'approved' ? 'green' : item.status === 'rejected' ? 'coral' : 'gold'}>{item.status}</Badge>,
+            <div className="row-actions">
+              <button className="mini approve" onClick={() => decide(item.id, 'approve')} disabled={item.status === 'approved' || Number(item.watchPercent || 0) < 100}><CheckCircle2 size={14} /> Approve</button>
+              <button className="mini reject" onClick={() => decide(item.id, 'reject')} disabled={item.status === 'approved' || item.status === 'rejected'}><XCircle size={14} /> Remark</button>
+            </div>
+          ])}
+          empty="No task completion updates yet."
+        />
+      </Panel>
+      <Panel title={editingTaskId ? 'Edit Promotion Task' : 'Create Promotion Task'} icon={ClipboardCheck}>
+        <form className="stack" onSubmit={createTask}>
+          <input required placeholder="Task title" value={task.title} onChange={(e) => setTask({ ...task, title: e.target.value })} />
+          <select value={task.platform} onChange={(e) => setTask({ ...task, platform: e.target.value })}>
+            {['youtube', 'instagram', 'facebook', 'google', 'website', 'whatsapp', 'banner', 'local', 'other'].map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <input placeholder="Task URL" value={task.taskUrl} onChange={(e) => setTask({ ...task, taskUrl: e.target.value })} />
+          <textarea required placeholder="Task instructions" value={task.description} onChange={(e) => setTask({ ...task, description: e.target.value })} />
+          <input type="number" step="0.01" placeholder="Reward per completed task" value={task.rewardAmount} onChange={(e) => setTask({ ...task, rewardAmount: e.target.value })} />
+          <select value={task.packageId} onChange={(e) => setTask({ ...task, packageId: e.target.value })}>
+            <option value="">All packages</option>
+            {packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
+          </select>
+          <select value={task.status} onChange={(e) => setTask({ ...task, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select>
+          <button className="primary">{editingTaskId ? 'Update Task' : 'Create Task'}</button>
+          {editingTaskId && <button type="button" className="ghost" onClick={() => { setEditingTaskId(''); setTask(emptyTask); }}>Cancel Edit</button>}
+        </form>
+      </Panel>
+    </div>
+  );
+}
+
+function WithdrawalsPage({ withdrawals, onRefresh }) {
+  async function decide(id, action) {
+    await api.put(`/withdrawals/admin/${id}/${action}`, action === 'paid' ? undefined : { adminRemarks: action });
+    onRefresh();
+  }
+
+  return (
+    <Panel title="Withdrawal Desk" icon={Wallet}>
+      <DataTable
+        columns={['User', 'Amount', 'Bank / UPI', 'Status', 'Action']}
+        rows={withdrawals.map((item) => [
+          item.user?.name || 'Member',
+          money(item.amount),
+          item.bankSnapshot?.upiId || item.bankSnapshot?.bankName || '-',
+          <Badge tone={item.status === 'paid' ? 'green' : item.status === 'rejected' ? 'coral' : 'gold'}>{item.status}</Badge>,
+          <div className="row-actions">
+            <button className="mini approve" onClick={() => decide(item.id, 'approve')} disabled={item.status !== 'pending'}>Approve</button>
+            <button className="mini" onClick={() => decide(item.id, 'paid')} disabled={item.status !== 'approved'}>Paid</button>
+            <button className="mini reject" onClick={() => decide(item.id, 'reject')} disabled={!['pending', 'approved'].includes(item.status)}>Reject</button>
+          </div>
+        ])}
+        empty="No withdrawal requests."
+      />
+    </Panel>
+  );
+}
+
+function SupportPage({ tickets }) {
+  return (
+    <Panel title="Support Tickets" icon={Ticket}>
+      <DataTable
+        columns={['User', 'Subject', 'Priority', 'Status']}
+        rows={tickets.map((ticket) => [
+          ticket.user?.name || 'Member',
+          ticket.subject,
+          <Badge tone={ticket.priority === 'high' ? 'coral' : 'gold'}>{ticket.priority}</Badge>,
+          <Badge tone={ticket.status === 'closed' ? 'green' : 'gold'}>{ticket.status}</Badge>
+        ])}
+        empty="No support tickets."
+      />
+    </Panel>
+  );
+}
+
+function ReportPanel({ title, icon, columns, rows, empty }) {
+  const Icon = icon;
+  return (
+    <Panel
+      title={title}
+      icon={Icon}
+      action={rows.length ? (
+        <div className="report-actions">
+          <button className="mini" onClick={() => exportExcel(title, columns, rows)}>Excel</button>
+          <button className="mini" onClick={() => exportPdf(title, columns, rows)}>PDF</button>
+        </div>
+      ) : null}
+    >
+      <DataTable columns={columns} rows={rows} empty={empty || 'No records found.'} />
+    </Panel>
+  );
+}
+
+function ReportsPage({ reports }) {
+  const dailyRows = (reports.dailyBusiness || []).map((item) => [
+    item.date,
+    item.registrations,
+    money(item.collectionAmount),
+    money(item.distributedAmount),
+    money(item.paidWithdrawalAmount),
+    money(item.profitAmount)
+  ]);
+  const packageRows = (reports.packagePerformance || []).map((item) => [
+    item.packageName,
+    item.registrations,
+    money(item.collectionAmount)
+  ]);
+  const distributionRows = (reports.distributionReport || []).map((item) => [
+    item.type,
+    money(item.amount)
+  ]);
+  const withdrawalRows = (reports.withdrawalReport || []).map((item) => [
+    item.status,
+    item.count,
+    money(item.amount)
+  ]);
+  const transactionRows = (reports.recentTransactions || []).map((item) => [
+    item.createdAt ? new Date(item.createdAt).toLocaleString() : '-',
+    item.type,
+    item.category,
+    money(item.amount),
+    item.remarks || '-'
+  ]);
+
+  return (
+    <div className="page-grid">
+      <Panel title="Profit Snapshot" icon={FileBarChart}>
+        <div className="profit-grid">
+          <div><span>Total Collection</span><strong>{money(reports.profitSnapshot?.totalCollection)}</strong></div>
+          <div><span>Rewards Distributed</span><strong>{money(reports.profitSnapshot?.totalDistributed)}</strong></div>
+          <div><span>Current Profit Zone</span><strong>{money(reports.profitSnapshot?.profitAmount)}</strong></div>
+          <div><span>Cash After Paid Withdrawals</span><strong>{money(reports.profitSnapshot?.cashAfterPaidWithdrawals)}</strong></div>
+        </div>
+      </Panel>
+      <ReportPanel
+        title="Daily Registration, Collection and Distribution Report"
+        icon={BadgeIndianRupee}
+        columns={['Date', 'Registrations', 'Collected', 'Rewards Distributed', 'Withdrawals Paid', 'Profit Zone']}
+        rows={dailyRows}
+        empty="No daily business records yet."
+      />
+      <div className="two-col">
+        <ReportPanel
+          title="Package Collection Report"
+          icon={Boxes}
+          columns={['Package', 'Approved Registrations', 'Collected Amount']}
+          rows={packageRows}
+          empty="No package collection records yet."
+        />
+        <ReportPanel
+          title="Reward Distribution Report"
+          icon={Wallet}
+          columns={['Reward Type', 'Distributed Amount']}
+          rows={distributionRows}
+          empty="No reward distribution records yet."
+        />
+      </div>
+      <div className="two-col">
+        <ReportPanel
+          title="Withdrawal Status Report"
+          icon={FileBarChart}
+          columns={['Status', 'Count', 'Amount']}
+          rows={withdrawalRows}
+          empty="No withdrawal records yet."
+        />
+        <ReportPanel
+          title="Recent Wallet Transaction Report"
+          icon={CreditCard}
+          columns={['Date', 'Type', 'Category', 'Amount', 'Remarks']}
+          rows={transactionRows}
+          empty="No wallet transactions yet."
+        />
+      </div>
+    </div>
+  );
+}
+
+function ContentPage({ banners, onRefresh }) {
+  const emptyBanner = { title: '', imageUrl: '', linkUrl: '', placement: 'home', status: 'active' };
+  const [banner, setBanner] = useState(emptyBanner);
+  const [bannerFile, setBannerFile] = useState(null);
+  const [editingBannerId, setEditingBannerId] = useState('');
+
+  async function createBanner(event) {
+    event.preventDefault();
+    const formData = new FormData();
+    formData.append('title', banner.title);
+    formData.append('imageUrl', banner.imageUrl);
+    formData.append('linkUrl', banner.linkUrl);
+    formData.append('placement', banner.placement);
+    formData.append('status', banner.status);
+    if (bannerFile) formData.append('image', bannerFile);
+    if (editingBannerId) {
+      await api.put(`/admin/banners/${editingBannerId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+    } else {
+      await api.post('/admin/banners', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+    }
+    setBanner(emptyBanner);
+    setBannerFile(null);
+    setEditingBannerId('');
+    onRefresh();
+  }
+
+  function editBanner(item) {
+    setEditingBannerId(item.id);
+    setBanner({
+      title: item.title || '',
+      imageUrl: item.imageUrl || '',
+      linkUrl: item.linkUrl || '',
+      placement: item.placement || 'home',
+      status: item.status || 'active'
+    });
+  }
+
+  return (
+    <div className="two-col">
+      <Panel title="Banners" icon={Image}>
+        <DataTable
+          columns={['Preview', 'Title', 'Placement', 'Status', 'Action']}
+          rows={banners.map((item) => [
+            item.imageUrl ? <img className="banner-preview" src={absoluteAssetUrl(item.imageUrl)} alt={item.title} /> : '-',
+            item.title,
+            item.placement,
+            <Badge tone={item.status === 'active' ? 'green' : 'gold'}>{item.status}</Badge>,
+            <div className="row-actions">
+              <button className="mini" onClick={() => editBanner(item)}>Edit</button>
+              <button className="mini" onClick={async () => { await api.put(`/admin/banners/${item.id}`, { status: item.status === 'active' ? 'inactive' : 'active' }); onRefresh(); }}>Status</button>
+              <button className="mini reject" onClick={async () => { if (window.confirm(`Delete ${item.title}?`)) { await api.delete(`/admin/banners/${item.id}`); onRefresh(); } }}>Delete</button>
+            </div>
+          ])}
+          empty="No banners yet."
+        />
+      </Panel>
+      <Panel title={editingBannerId ? 'Edit Banner' : 'Create Banner'} icon={UploadCloud}>
+        <form className="stack" onSubmit={createBanner}>
+          <input required placeholder="Banner title" value={banner.title} onChange={(e) => setBanner({ ...banner, title: e.target.value })} />
+          <input placeholder="Image URL" value={banner.imageUrl} onChange={(e) => setBanner({ ...banner, imageUrl: e.target.value })} />
+          <input type="file" accept="image/*" onChange={(e) => setBannerFile(e.target.files?.[0] || null)} />
+          <input placeholder="Link URL" value={banner.linkUrl} onChange={(e) => setBanner({ ...banner, linkUrl: e.target.value })} />
+          <select value={banner.placement} onChange={(e) => setBanner({ ...banner, placement: e.target.value })}><option value="home">Home</option><option value="dashboard">Dashboard</option><option value="promotion">Promotion</option><option value="mobile">Mobile</option></select>
+          <select value={banner.status} onChange={(e) => setBanner({ ...banner, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option></select>
+          <button className="primary">{editingBannerId ? 'Update Banner' : 'Save Banner'}</button>
+          {editingBannerId && <button type="button" className="ghost" onClick={() => { setEditingBannerId(''); setBanner(emptyBanner); }}>Cancel Edit</button>}
+        </form>
+      </Panel>
+    </div>
+  );
+}
+
+function NotificationsPage() {
+  const [notification, setNotification] = useState({ title: '', body: '', type: 'general' });
+  const [items, setItems] = useState([]);
+
+  async function loadNotifications() {
+    const response = await api.get('/admin/notifications');
+    setItems(response.data.notifications || []);
+  }
+
+  useEffect(() => {
+    loadNotifications().catch(() => setItems([]));
+  }, []);
+
+  async function broadcast(event) {
+    event.preventDefault();
+    await api.post('/admin/notifications', notification);
+    setNotification({ title: '', body: '', type: 'general' });
+    await loadNotifications();
+  }
+
+  return (
+    <div className="two-col">
+      <Panel title="Task Completion Updates" icon={Bell}>
+        <DataTable
+          columns={['Title', 'Message', 'Type', 'Date']}
+          rows={items.map((item) => [
+            item.title,
+            item.body,
+            <Badge tone={item.type === 'task' ? 'green' : 'gold'}>{item.type}</Badge>,
+            item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'
+          ])}
+          empty="No notifications yet."
+        />
+      </Panel>
+      <Panel title="Send Notification" icon={Bell}>
+        <form className="notification-form" onSubmit={broadcast}>
+          <input required placeholder="Title" value={notification.title} onChange={(e) => setNotification({ ...notification, title: e.target.value })} />
+          <textarea required placeholder="Message body" value={notification.body} onChange={(e) => setNotification({ ...notification, body: e.target.value })} />
+          <select value={notification.type} onChange={(e) => setNotification({ ...notification, type: e.target.value })}><option value="general">General</option><option value="task">Task</option><option value="payment">Payment</option><option value="withdrawal">Withdrawal</option><option value="income">Income</option></select>
+          <button className="primary">Broadcast</button>
+        </form>
+      </Panel>
+    </div>
+  );
+}
+
+function Panel({ title, icon: Icon, action, children }) {
+  return (
+    <section className="panel">
+      <header className="panel-head">
+        <div>
+          <span><Icon size={18} /></span>
+          <h2>{title}</h2>
+        </div>
+        {action}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function DataTable({ columns, rows, empty }) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.length ? rows.map((row, index) => (
+            <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
+          )) : (
+            <tr><td colSpan={columns.length}><Empty text={empty} /></td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Badge({ tone = 'green', children }) {
+  return <span className={`badge ${tone}`}>{children}</span>;
+}
+
+function SearchBox() {
+  return <label className="search"><Search size={16} /><input placeholder="Search" /></label>;
+}
+
+function ActionPair({ onApprove, onReject, disabled }) {
+  return (
+    <div className="row-actions">
+      <button className="mini approve" onClick={onApprove} disabled={disabled}><CheckCircle2 size={14} /> Approve</button>
+      <button className="mini reject" onClick={onReject} disabled={disabled}><XCircle size={14} /> Reject</button>
+    </div>
+  );
+}
+
+function QueueRow({ label, value, tone }) {
+  return (
+    <div className="queue-row">
+      <span>{label}</span>
+      <strong className={tone}>{value}</strong>
+      <ChevronRight size={17} />
+    </div>
+  );
+}
+
+function Empty({ text }) {
+  return <div className="empty">{text}</div>;
+}

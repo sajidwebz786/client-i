@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import axios from 'axios';
 import {
@@ -57,6 +57,7 @@ const PAYMENT_PAYEE_NAME = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'LASYA PRO
 const PAYMENT_TERMINAL = 'Terminal 3-Q155769084';
 const SUPPORT_WHATSAPP = '919000424489';
 const SUPPORT_TELEGRAM = 'https://t.me/LuminateAds';
+const AdminApp = React.lazy(() => import('./AdminApp.jsx'));
 
 const api = axios.create({ baseURL: API_URL });
 api.interceptors.request.use((config) => {
@@ -1926,10 +1927,17 @@ function AuthModal({ onClose, onSession, packages }) {
           )}
           {error && <p className="error">{error}</p>}
           <button className="primary full" disabled={busy}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}</button>
+          <button className="ghost full" type="button" onClick={() => { window.location.href = '/admin'; }}>Admin Login</button>
         </form>
       </div>
     </div>
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+function RootApp() {
+  return window.location.pathname.startsWith('/admin')
+    ? <Suspense fallback={<div className="app-loading">Loading admin...</div>}><AdminApp /></Suspense>
+    : <App />;
+}
+
+createRoot(document.getElementById('root')).render(<RootApp />);
