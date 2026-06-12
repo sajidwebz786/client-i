@@ -8,5 +8,15 @@ export default defineConfig({
   },
   preview: {
     allowedHosts: ['client-i.onrender.com']
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]'
+      }
+    },
+    copyPublicDir: true
   }
 });

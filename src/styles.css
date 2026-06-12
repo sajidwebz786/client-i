@@ -188,6 +188,29 @@ button {
   background: #fff;
 }
 
+.notify-btn {
+  position: relative;
+}
+
+.alert-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dc2626;
+  color: #fff;
+  border: 2px solid #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .menu {
   display: none;
 }
@@ -397,19 +420,30 @@ button {
 }
 
 .service-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
-.service-card {
-  padding: 26px;
-  animation: rise 520ms ease both;
+.service-card,
+.package-card {
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.08);
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.service-card:hover,
+.package-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 36px 90px rgba(15, 23, 42, 0.12);
 }
 
 .service-card h3,
 .package-card h3,
 .panel h3,
 .contact-panel h3 {
-  margin: 18px 0 8px;
+  margin: 18px 0 10px;
 }
 
 .service-icon svg,
@@ -419,21 +453,20 @@ button {
 }
 
 .package-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   align-items: stretch;
 }
 
 .package-card {
-  padding: 30px;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
 .package-card.featured {
-  border-color: rgba(15, 139, 109, 0.45);
-  box-shadow: var(--shadow);
-  transform: translateY(-8px);
+  border-color: rgba(249, 115, 22, 0.4);
+  box-shadow: 0 34px 98px rgba(249, 115, 22, 0.18);
+  background: linear-gradient(180deg, #fff8ef 0%, #fff9f2 100%);
 }
 
 .package-top {
@@ -441,7 +474,8 @@ button {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  font-weight: 850;
+  font-weight: 800;
+  color: var(--navy);
 }
 
 .package-top em {
@@ -449,12 +483,19 @@ button {
   color: #fff;
   background: var(--coral);
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   font-size: 0.78rem;
 }
 
 .package-card > strong {
-  font-size: 1.85rem;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.package-card p {
+  max-width: 100%;
+  color: var(--muted);
+  line-height: 1.75;
 }
 
 .package-card ul {
@@ -468,8 +509,12 @@ button {
 .package-card li {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--muted);
+}
+
+.package-card li svg {
+  color: var(--green);
 }
 
 .full {
@@ -511,6 +556,8 @@ button {
 .gift-rule span {
   color: var(--muted);
 }
+
+/* Offer picture blink styles */
 
 .joining-card strong {
   font-size: 1.8rem;
@@ -861,9 +908,63 @@ button {
   width: 72px;
   height: 72px;
   padding: 14px;
-  background: linear-gradient(135deg, #0f172a, #0f766e);
-  border-color: #0f172a;
 }
+
+/* Offer modal styles */
+.overlay.offer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 20, 36, 0.72);
+  padding: 18px;
+}
+
+.offer-modal-card {
+  width: auto;
+  max-width: min(96vw, 820px);
+  max-height: 92vh;
+  display: grid;
+  gap: 0;
+  padding: 18px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 32px 120px rgba(7, 17, 33, 0.28);
+  overflow: hidden;
+}
+
+.offer-modal-body {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+  width: auto;
+  min-width: min-content;
+  overflow: hidden;
+}
+
+.offer-modal-image {
+  width: auto;
+  max-width: 100%;
+  max-height: calc(92vh - 136px);
+  border-radius: 16px;
+  object-fit: contain;
+}
+
+.offer-modal-body p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.7;
+}
+
+.offer-modal-close {
+  width: 100%;
+  max-width: 100%;
+  padding: 12px 28px;
+  justify-self: center;
+}
+
 
 .tree-member strong {
   max-width: 120px;
@@ -1243,21 +1344,14 @@ code {
 }
 
 .share-row {
-  margin-top: 16px;
+  display: flex;
   flex-wrap: wrap;
-}
-
-.share-row button {
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--line);
+  align-items: center;
+  margin-top: 16px;
 }
 
+.share-row button,
 .share-row a {
   display: inline-flex;
   align-items: center;
@@ -1268,6 +1362,13 @@ code {
   background: #fff;
   border: 1px solid var(--line);
   text-decoration: none;
+}
+
+.telegram-link img {
+  width: 18px;
+  height: 18px;
+  object-fit: cover;
+  border-radius: 4px;
 }
 
 .banner-strip {
@@ -1597,6 +1698,32 @@ select:focus {
   color: rgba(255, 255, 255, 0.62);
 }
 
+.footer-download {
+  display: flex;
+  justify-content: center;
+  padding: 0 0 24px;
+}
+
+.footer-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 750;
+  box-shadow: 0 16px 34px rgba(34, 197, 94, 0.24);
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.footer-download-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(34, 197, 94, 0.32);
+}
+
 .footer-bottom div {
   display: flex;
   gap: 18px;
@@ -1635,6 +1762,29 @@ select:focus {
 .auth-modal form {
   display: grid;
   gap: 12px;
+}
+
+.notification-list {
+  display: grid;
+  gap: 10px;
+  max-height: 56vh;
+  overflow: auto;
+}
+
+.notification-item {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.notification-item p {
+  margin: 6px 0;
+  color: var(--muted);
+}
+
+.notification-item small {
+  color: var(--muted);
 }
 
 .auth-simple-modal {
@@ -1676,6 +1826,49 @@ select:focus {
 .password-field input {
   width: 100%;
   padding-right: 48px;
+}
+
+.checkbox-group {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #d9e2ec;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.checkbox-item input {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: #2563eb;
+}
+
+.checkbox-item span {
+  color: #111827;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.checkbox-link {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.checkbox-link:hover {
+  text-decoration: none;
 }
 
 .password-toggle {
@@ -2123,6 +2316,16 @@ select:focus {
 
   .footer-bottom {
     align-items: flex-start;
+  }
+
+  .footer-download {
+    padding: 0 0 20px;
+  }
+
+  .footer-download-btn {
+    min-height: 44px;
+    padding: 10px 20px;
+    font-size: 0.92rem;
   }
 
   .task-card {

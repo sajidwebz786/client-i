@@ -246,6 +246,7 @@ export default function AdminApp() {
           </div>
           <div className="admin-actions">
             <div className="admin-chip"><ShieldCheck size={16} /> {admin?.name || 'Admin'}</div>
+            <button className="ghost" onClick={() => { const pwd = window.prompt('New password for admin'); if (pwd && pwd.length >= 6) { api.put(`/admin/users/${admin.id}/reset-password`, { password: pwd }).then(() => { setNotice('Admin password updated.'); }).catch((err) => { setNotice(err.response?.data?.message || 'Error updating password'); }); } }} title="Change password"><LogOut size={17} /> Change Password</button>
             <button className="ghost" onClick={logout}><LogOut size={17} /> Logout</button>
           </div>
         </header>
@@ -262,7 +263,7 @@ export default function AdminApp() {
         {active === 'support' && <SupportPage tickets={data.tickets} />}
         {active === 'reports' && <ReportsPage reports={data.reports} />}
         {active === 'content' && <ContentPage banners={data.banners} onRefresh={() => setRefresh((x) => x + 1)} />}
-        {active === 'notifications' && <NotificationsPage />}
+        {active === 'notifications' && <NotificationsPage users={data.users} />}
       </main>
     </div>
   );
@@ -353,6 +354,25 @@ function LoginScreen({ onSession }) {
   );
 }
 
+function RegisteredUsersPanel({ users }) {
+  return (
+    <Panel title="Registered Users" icon={Users}>
+      <DataTable
+        columns={['Name', 'Mobile', 'Email', 'Status', 'Package', 'Balance']}
+        rows={(users || []).slice(0, 50).map((user) => [
+          user.name,
+          user.mobile,
+          user.email,
+          <Badge tone={user.status === 'active' ? 'green' : user.status === 'inactive' ? 'gray' : 'coral'}>{user.status}</Badge>,
+          user.package?.name || 'None',
+          money(user.wallet?.balance || 0)
+        ])}
+        empty="No registered users yet."
+      />
+    </Panel>
+  );
+}
+
 function Dashboard({ data }) {
   const cards = [
     ['Total Users', data.totals.totalUsers, Users],
@@ -393,6 +413,7 @@ function Dashboard({ data }) {
       </div>
       <AdminPlanSummary />
       <DailyDebitRunner />
+      <RegisteredUsersPanel users={data.users} />
     </section>
   );
 }
@@ -412,7 +433,7 @@ function AdminPlanSummary() {
         </div>
         <div className="total-band">
           <span>Network example cumulative earnings</span>
-          <strong>₹27,77,83,29,864</strong>
+          <strong style={{fontSize:'0.9em',wordBreak:'break-word'}}>₹27,77,83,29,864</strong>
         </div>
       </Panel>
       <Panel title="Payment QR Reference" icon={QrCode}>
@@ -517,6 +538,7 @@ function UsersPage({ users, onRefresh }) {
             ) : (
               <button className="mini reject" onClick={async () => { if (window.confirm(`Block login for ${user.name}?`)) { await api.delete(`/admin/users/${user.id}`); onRefresh(); } }}>Block</button>
             )}
+            <button className="mini reject" onClick={async () => { if (window.confirm(`Permanently delete ${user.name} and all related records? This cannot be undone.`)) { await api.delete(`/admin/users/${user.id}/permanent`); onRefresh(); } }}>Delete</button>
           </div>
         ])}
         empty="No users yet."
@@ -1116,8 +1138,8 @@ function ContentPage({ banners, onRefresh }) {
   );
 }
 
-function NotificationsPage() {
-  const [notification, setNotification] = useState({ title: '', body: '', type: 'general' });
+function NotificationsPage({ users }) {
+  const [notification, setNotification] = useState({ title: '', body: '', type: 'general', userId: '', targetScope: 'all' });
   const [items, setItems] = useState([]);
 
   async function loadNotifications() {
@@ -1131,31 +1153,52 @@ function NotificationsPage() {
 
   async function broadcast(event) {
     event.preventDefault();
-    await api.post('/admin/notifications', notification);
-    setNotification({ title: '', body: '', type: 'general' });
+    const payload = {
+      title: notification.title,
+      body: notification.body,
+      type: notification.type,
+      targetScope: notification.type === 'general' ? 'all' : notification.targetScope,
+      userId: notification.type === 'general' ? null : notification.userId
+    };
+    await api.post('/admin/notifications', payload);
+    setNotification({ title: '', body: '', type: 'general', userId: '', targetScope: 'all' });
     await loadNotifications();
   }
 
   return (
     <div className="two-col">
-      <Panel title="Task Completion Updates" icon={Bell}>
+      <Panel title="Push Notifications" icon={Bell}>
+        <p>Notifications appear on mobile lock screen and in app alerts. Members receive real-time chat reminders and promotional messages.</p>
         <DataTable
-          columns={['Title', 'Message', 'Type', 'Date']}
+          columns={['Title', 'Message', 'Type', 'Target', 'Date']}
           rows={items.map((item) => [
             item.title,
             item.body,
             <Badge tone={item.type === 'task' ? 'green' : 'gold'}>{item.type}</Badge>,
+            item.user?.name || (item.userId ? 'Selected member' : 'All members'),
             item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'
           ])}
-          empty="No notifications yet."
+          empty="No notifications sent yet."
         />
       </Panel>
-      <Panel title="Send Notification" icon={Bell}>
+      <Panel title="Send Push Notification" icon={Bell}>
         <form className="notification-form" onSubmit={broadcast}>
           <input required placeholder="Title" value={notification.title} onChange={(e) => setNotification({ ...notification, title: e.target.value })} />
           <textarea required placeholder="Message body" value={notification.body} onChange={(e) => setNotification({ ...notification, body: e.target.value })} />
-          <select value={notification.type} onChange={(e) => setNotification({ ...notification, type: e.target.value })}><option value="general">General</option><option value="task">Task</option><option value="payment">Payment</option><option value="withdrawal">Withdrawal</option><option value="income">Income</option></select>
-          <button className="primary">Broadcast</button>
+          <select value={notification.type} onChange={(e) => setNotification({ ...notification, type: e.target.value, targetScope: e.target.value === 'general' ? 'all' : 'user_line' })}><option value="general">General</option><option value="task">Task Reminder</option><option value="payment">Payment Alert</option><option value="withdrawal">Withdrawal Update</option><option value="income">Income Credit</option></select>
+          {notification.type !== 'general' && (
+            <>
+              <select required value={notification.userId} onChange={(e) => setNotification({ ...notification, userId: e.target.value })}>
+                <option value="">Select member</option>
+                {(users || []).map((user) => <option key={user.id} value={user.id}>{user.name} · {user.mobile || user.email}</option>)}
+              </select>
+              <select value={notification.targetScope} onChange={(e) => setNotification({ ...notification, targetScope: e.target.value })}>
+                <option value="user_line">Selected member and line</option>
+                <option value="user">Selected member only</option>
+              </select>
+            </>
+          )}
+          <button className="primary">Send Notification</button>
         </form>
       </Panel>
     </div>

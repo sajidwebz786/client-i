@@ -366,7 +366,7 @@ p {
 
 .commission-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
 }
 
@@ -378,6 +378,8 @@ p {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f8fafc;
+  text-align: left;
+  align-items: flex-start;
 }
 
 .commission-cell span,
@@ -386,6 +388,11 @@ p {
 .achievement-card span,
 .achievement-card p {
   color: var(--muted);
+  text-align: left;
+}
+
+.commission-cell small {
+  word-break: break-word;
 }
 
 .commission-cell strong {
@@ -468,8 +475,10 @@ p {
   aspect-ratio: 1;
   border-radius: 8px;
   object-fit: contain;
+  object-position: center;
   background: #fff;
   border: 1px solid var(--line);
+  vertical-align: middle;
 }
 
 .admin-qr-img.compact {
@@ -621,6 +630,7 @@ p {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f8fafc;
+  text-align: center;
 }
 
 .achievement-card svg {
@@ -647,6 +657,10 @@ td {
   padding: 15px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
+  vertical-align: middle;
+}
+
+td img {
   vertical-align: middle;
 }
 
@@ -804,6 +818,7 @@ select:focus {
   border-radius: 8px;
   background: #f8fafc;
   background-repeat: no-repeat;
+  vertical-align: middle;
 }
 
 .login-copy {

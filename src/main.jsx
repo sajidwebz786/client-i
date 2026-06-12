@@ -48,6 +48,7 @@ import logo from './images/logo.png';
 import paymentQrImage from './images/qrcode.jpeg';
 import heroFallbackImage from './images/mlm-main.jpg';
 import heroAdsPlatformImage from './images/hero-ads-platform.png';
+import offerPic from './images/offer-pic.jpeg';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BRAND_NAME = 'Luminate Ads';
@@ -56,7 +57,7 @@ const PAYMENT_UPI_ID = import.meta.env.VITE_PAYMENT_UPI_ID || '';
 const PAYMENT_PAYEE_NAME = import.meta.env.VITE_PAYMENT_PAYEE_NAME || 'LASYA PROMOTERS';
 const PAYMENT_TERMINAL = 'Terminal 3-Q155769084';
 const SUPPORT_WHATSAPP = '919000424489';
-const SUPPORT_TELEGRAM = 'https://t.me/LuminateAds';
+const SUPPORT_TELEGRAM = 'https://t.me/+KUJdU-6N4HE2ZWY1';
 const AdminApp = React.lazy(() => import('./AdminApp.jsx'));
 
 const api = axios.create({ baseURL: API_URL });
@@ -361,7 +362,24 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('luminateads_token'));
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('luminateads_user') || 'null'));
   const [notice, setNotice] = useState('');
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
   const isLoggedIn = Boolean(token);
+
+  const [showOfferModal, setShowOfferModal] = useState(active === 'home' || active === 'portal');
+
+  useEffect(() => {
+    if (active === 'home' || active === 'portal') {
+      setShowOfferModal(true);
+    } else {
+      setShowOfferModal(false);
+    }
+  }, [active]);
+
+  function closeOfferModal() {
+    setShowOfferModal(false);
+  }
   const packages = useApiData('/packages', demoPackages, (data) => data.packages || demoPackages);
   const tasks = useApiData(isLoggedIn ? '/tasks' : null, demoTasks, (data) => data.tasks || demoTasks);
   const wallet = useApiData(isLoggedIn ? '/wallet' : null, { wallet: { totalEarned: 0, availableBalance: 0, withdrawnAmount: 0 }, transactions: [] }, (data) => data);
@@ -420,7 +438,38 @@ function App() {
     localStorage.removeItem('luminateads_user');
     setToken(null);
     setUser(null);
+    setNotificationCount(0);
     setActive('home');
+  }
+
+  async function refreshNotificationCount() {
+    if (!isLoggedIn) return;
+    try {
+      const res = await api.get('/notifications', { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } });
+      setNotificationCount((res.data.notifications || []).filter((item) => !item.readAt).length);
+    } catch {
+      setNotificationCount(0);
+    }
+  }
+
+  async function openNotifications() {
+    if (!isLoggedIn) {
+      setAuthOpen(true);
+      return;
+    }
+    try {
+      const res = await api.get('/notifications', { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } });
+      const rows = res.data.notifications || [];
+      setNotifications(rows);
+      const unread = rows.filter((item) => !item.readAt);
+      if (unread.length) {
+        await Promise.allSettled(unread.map((item) => api.put(`/notifications/${item.id}/read`)));
+      }
+      setNotificationCount(0);
+      setNotificationsOpen(true);
+    } catch (err) {
+      setNotice(err.response?.data?.message || 'Unable to load notifications.');
+    }
   }
 
   useEffect(() => {
@@ -460,6 +509,13 @@ function App() {
     };
   }, [token, active]);
 
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
+    refreshNotificationCount();
+    const timer = window.setInterval(refreshNotificationCount, 60000);
+    return () => window.clearInterval(timer);
+  }, [isLoggedIn]);
+
   return (
     <div className="app">
       <header className="topbar">
@@ -481,7 +537,10 @@ function App() {
         <div className="top-actions">
           {isLoggedIn ? (
             <>
-              <button className="icon-btn" title="Notifications"><Bell size={18} /></button>
+              <button className="icon-btn notify-btn" title="Notifications" onClick={openNotifications}>
+                <Bell size={18} />
+                {notificationCount > 0 && <span className="alert-count">{notificationCount > 99 ? '99+' : notificationCount}</span>}
+              </button>
               <button className="ghost" onClick={logout}><LogOut size={17} /> Logout</button>
             </>
           ) : (
@@ -536,10 +595,18 @@ function App() {
             <span>Terms & Conditions</span>
           </div>
         </div>
+        <div className="footer-download">
+          <a href="/android/luminate.apk" download className="footer-download-btn">
+            <Smartphone size={20} />
+            Download Android version
+          </a>
+        </div>
       </footer>
 
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} onSession={saveSession} packages={packages.data} />}
       {paymentPackage && <PaymentModal pkg={paymentPackage} onClose={() => setPaymentPackage(null)} setNotice={setNotice} />}
+      {notificationsOpen && <NotificationModal notifications={notifications} onClose={() => setNotificationsOpen(false)} />}
+      {(active === 'home' || active === 'portal') && showOfferModal && <OfferModal onClose={closeOfferModal} />}
     </div>
   );
 }
@@ -821,7 +888,7 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
           <span className="section-kicker">Customer Portal</span>
           <h2>Welcome, {user?.name || 'Member'}.</h2>
         </div>
-          <button className="primary" onClick={() => setActive('tasks')}>Today’s Activities <ChevronRight size={18} /></button>
+        <button className="primary" onClick={() => setActive('tasks')}>Today’s Activities <ChevronRight size={18} /></button>
       </div>
       <div className="stat-grid">
         {stats.map(([label, value, Icon]) => (
@@ -1316,6 +1383,8 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
   const youtubeMountRef = useRef(null);
   const youtubePlayerRef = useRef(null);
   const directVideoRef = useRef(null);
+  const youtubeMaxWatchedRef = useRef(Number(storedProgress.seconds || 0));
+  const directMaxWatchedRef = useRef(Number(storedProgress.seconds || 0));
   const restoredDirectRef = useRef(false);
   const restoredYouTubeRef = useRef(false);
   const activeTaskIdRef = useRef(activeTaskId);
@@ -1364,9 +1433,16 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
       const duration = player.getDuration();
       if (!duration) return;
       const currentTime = player.getCurrentTime();
-      const watched = Math.min(100, Math.round((currentTime / duration) * 100));
+      const maxWatched = Number(youtubeMaxWatchedRef.current || 0);
+      if (currentTime > maxWatched + 2 && maxWatched > 0) {
+        player.seekTo(maxWatched, true);
+        return;
+      }
+      youtubeMaxWatchedRef.current = Math.max(maxWatched, currentTime);
+      const safeSeconds = youtubeMaxWatchedRef.current;
+      const watched = Math.min(100, Math.round((safeSeconds / duration) * 100));
       setProgress(watched);
-      saveTaskProgress(userId, task.id, { percent: watched, seconds: currentTime });
+      saveTaskProgress(userId, task.id, { percent: watched, seconds: safeSeconds });
       if (watched >= 100) clearInterval(progressTimer);
     }
 
@@ -1377,12 +1453,13 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
       youtubeMountRef.current.appendChild(playerElement);
       youtubePlayerRef.current = new window.YT.Player(playerElement, {
         videoId: youtubeVideoId,
-        playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+        playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
           onReady: (event) => {
             const saved = readTaskProgress(userId, task);
             if (!restoredYouTubeRef.current && Number(saved.seconds || 0) > 0) {
               restoredYouTubeRef.current = true;
+              youtubeMaxWatchedRef.current = Number(saved.seconds);
               event.target.seekTo(Number(saved.seconds), true);
               setProgress(Number(saved.percent || 0));
             }
@@ -1447,9 +1524,16 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
   function onVideoProgress(event) {
     const video = event.currentTarget;
     if (!video.duration) return;
-    const watched = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+    const maxWatched = Number(directMaxWatchedRef.current || 0);
+    if (video.currentTime > maxWatched + 2 && maxWatched > 0) {
+      video.currentTime = maxWatched;
+      return;
+    }
+    directMaxWatchedRef.current = Math.max(maxWatched, video.currentTime);
+    const safeSeconds = directMaxWatchedRef.current;
+    const watched = Math.min(100, Math.round((safeSeconds / video.duration) * 100));
     setProgress(watched);
-    saveTaskProgress(userId, task.id, { percent: watched, seconds: video.currentTime });
+    saveTaskProgress(userId, task.id, { percent: watched, seconds: safeSeconds });
   }
 
   function onDirectVideoPlay(event) {
@@ -1464,6 +1548,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
     if (restoredDirectRef.current) return;
     const saved = readTaskProgress(userId, task);
     if (Number(saved.seconds || 0) > 0 && event.currentTarget.duration && Number(saved.seconds) < event.currentTarget.duration) {
+      directMaxWatchedRef.current = Number(saved.seconds);
       event.currentTarget.currentTime = Number(saved.seconds);
       setProgress(Number(saved.percent || 0));
     }
@@ -1494,7 +1579,9 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
               }}>
                 {isLocked && <div className="video-lock-overlay">Complete the current task first</div>}
                 {isDirectVideo ? (
-                  <video ref={directVideoRef} src={videoUrl} controls onLoadedMetadata={restoreDirectVideo} onTimeUpdate={onVideoProgress} onPlay={onDirectVideoPlay} onEnded={(event) => {
+                  <video ref={directVideoRef} src={videoUrl} controls={false} controlsList="nodownload noplaybackrate noremoteplayback" disablePictureInPicture onClick={(event) => {
+                    if (event.currentTarget.paused) event.currentTarget.play();
+                  }} onLoadedMetadata={restoreDirectVideo} onTimeUpdate={onVideoProgress} onSeeking={onVideoProgress} onPlay={onDirectVideoPlay} onEnded={(event) => {
                     completeWatch(event.currentTarget.duration || readTaskProgress(userId, task).seconds || 0);
                   }} />
                 ) : embedUrl && canTrackYouTube ? (
@@ -1740,16 +1827,29 @@ function PaymentModal({ pkg, onClose, setNotice }) {
 
   async function submit(event) {
     event.preventDefault();
+    if (!utrNumber.trim()) {
+      setNotice('Please enter the UTR / transaction number after payment.');
+      return;
+    }
+    if (!file) {
+      setNotice('Please upload the payment screenshot or receipt.');
+      return;
+    }
     setBusy(true);
-    const formData = new FormData();
-    formData.append('packageId', pkg.id);
-    formData.append('paymentMode', 'manual');
-    if (utrNumber) formData.append('utrNumber', utrNumber);
-    if (file) formData.append('screenshot', file);
-    await api.post('/payments/upload-proof', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-    setBusy(false);
-    setNotice('Your payment details have been submitted.');
-    onClose();
+    try {
+      const formData = new FormData();
+      formData.append('packageId', pkg.id);
+      formData.append('paymentMode', 'upi');
+      formData.append('utrNumber', utrNumber.trim());
+      formData.append('screenshot', file);
+      await api.post('/payments/upload-proof', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setNotice('Your payment details have been submitted.');
+      onClose();
+    } catch (err) {
+      setNotice(err.response?.data?.message || 'Unable to submit payment details.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -1775,10 +1875,10 @@ function PaymentModal({ pkg, onClose, setNotice }) {
           )}
         </div>
         <form onSubmit={submit}>
-          <input value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} placeholder="UTR / transaction number" />
+          <input value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} placeholder="UTR / transaction number" required />
           <label className="file-field">
             <Upload size={18} /> {file ? file.name : 'Upload screenshot or receipt'}
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0])} />
+            <input type="file" required onChange={(e) => setFile(e.target.files?.[0])} />
           </label>
           <button className="primary full" disabled={busy}>{busy ? 'Submitting...' : 'Submit Payment Details'}</button>
         </form>
@@ -1814,12 +1914,87 @@ function Gate({ title, text, action }) {
   );
 }
 
+function OfferModal({ onClose }) {
+  return (
+    <div className="overlay offer-modal">
+      <div className="offer-modal-card">
+        <div className="offer-modal-body">
+          <img className="offer-modal-image" src={offerPic} alt="Exclusive offer" />
+          <p>Exclusive Offer on Launch</p>
+          <button className="primary offer-modal-close" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NotificationModal({ notifications, onClose }) {
+  return (
+    <div className="modal-backdrop">
+      <div className="auth-modal">
+        <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
+        <span className="section-kicker">Notifications</span>
+        <h2>Account Updates</h2>
+        <div className="notification-list">
+          {notifications.length ? notifications.map((item) => (
+            <article className="notification-item" key={item.id}>
+              <strong>{item.title}</strong>
+              <p>{item.body}</p>
+              <small>{item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}</small>
+            </article>
+          )) : <p className="muted">No notifications yet. Payment, activities, wallet, and support updates will appear here.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TermsAndConditionsModal({ onClose }) {
+  return (
+    <div className="modal-backdrop">
+      <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="icon-btn close" onClick={onClose} title="Close"><X size={18} /></button>
+        <img className="auth-simple-logo" src={logo} alt="Luminate Ads" />
+        <h2>Terms and Conditions</h2>
+        <div className="terms-content" style={{ maxHeight: '60vh', overflowY: 'auto', padding: '10px 0' }}>
+          <p>By registering with Luminate Ads, you confirm that you are at least 18 years old and that the information provided is true and accurate. You agree to our Terms and Conditions and consent to compliance with our policies, including eligibility, payment, and privacy rules. Registration is subject to verification and acceptance by Luminate Ads.</p>
+          <p>You must also acknowledge that you understand the service terms, privacy policy, and any subscription or renewal requirements. Continued use of the app indicates acceptance of these terms.</p>
+          <p>Please do not share your password with anyone and ensure your contact details are current. We may suspend accounts that violate our terms or provide false information.</p>
+        </div>
+        <button className="primary full" type="button" onClick={onClose}>Close and Accept</button>
+      </div>
+    </div>
+  );
+}
+
 function AuthModal({ onClose, onSession, packages }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState(() => ({ name: '', email: '', mobile: '', password: '', confirmPassword: '', identifier: '', referralCode: new URLSearchParams(window.location.search).get('ref') || '', packageId: packages[0]?.id || '' }));
+  const [form, setForm] = useState(() => ({ name: '', email: '', mobile: '', dob: '', password: '', confirmPassword: '', identifier: '', referralCode: new URLSearchParams(window.location.search).get('ref') || '', packageId: packages[0]?.id || '', agreeTerms: false, agreeAge: false }));
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
+  function calculateAge(dobString) {
+    if (!dobString) return null;
+    // support dd-mm-yyyy (mobile placeholder) and ISO yyyy-mm-dd
+    let parsed;
+    const dm = dobString.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (dm) {
+      // convert dd-mm-yyyy to yyyy-mm-dd
+      parsed = new Date(`${dm[3]}-${dm[2]}-${dm[1]}T00:00:00`);
+    } else {
+      parsed = new Date(dobString);
+    }
+    if (Number.isNaN(parsed.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - parsed.getFullYear();
+    const monthDiff = now.getMonth() - parsed.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < parsed.getDate())) {
+      age -= 1;
+    }
+    return age;
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -1833,9 +2008,26 @@ function AuthModal({ onClose, onSession, packages }) {
       const password = form.password;
       const referralCode = form.referralCode.trim();
 
+
       if (mode === 'register') {
-        if (!name || !email || !mobile || !password) {
+        if (!name || !email || !mobile || !password || !form.dob) {
           setError('Please fill all required details.');
+          setBusy(false);
+          return;
+        }
+        const age = calculateAge(form.dob);
+        if (age === null || age < 18) {
+          setError('You must be at least 18 years old to register.');
+          setBusy(false);
+          return;
+        }
+        if (!form.agreeTerms) {
+          setError('Please agree to the Terms and Conditions.');
+          setBusy(false);
+          return;
+        }
+        if (!form.agreeAge) {
+          setError('Please confirm that you are 18 years or older.');
           setBusy(false);
           return;
         }
@@ -1861,7 +2053,7 @@ function AuthModal({ onClose, onSession, packages }) {
       }
       const payload = mode === 'login'
         ? { identifier, password }
-        : { name, email, mobile, password, referralCode };
+        : { name, email, mobile, dob: form.dob, password, referralCode };
       const res = await api.post(mode === 'login' ? '/auth/login' : '/auth/register', payload);
       onSession(res.data);
     } catch (err) {
@@ -1888,6 +2080,14 @@ function AuthModal({ onClose, onSession, packages }) {
     }));
   }
 
+  const isRegisterValid = mode === 'register'
+    ? form.name && form.email && form.mobile && form.dob && form.password && form.confirmPassword && form.agreeTerms && form.agreeAge && form.password === form.confirmPassword && calculateAge(form.dob) >= 18
+    : true;
+
+  // Detect touch/mobile devices to show a placeholder-friendly date input
+  const isTouchDevice = typeof window !== 'undefined' && (('ontouchstart' in window) || navigator.maxTouchPoints > 0);
+  const dateInputType = isTouchDevice ? 'text' : 'date';
+
   return (
     <div className="modal-backdrop">
       <div className="auth-modal auth-simple-modal">
@@ -1905,6 +2105,7 @@ function AuthModal({ onClose, onSession, packages }) {
               <input required placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <input required placeholder="Mobile number" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} />
+              <input required type="date" max={new Date().toISOString().split('T')[0]} value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} />
               <input placeholder="Referral code" value={form.referralCode} onChange={(e) => setForm({ ...form, referralCode: e.target.value })} />
             </>
           )}
@@ -1925,9 +2126,22 @@ function AuthModal({ onClose, onSession, packages }) {
               </button>
             </div>
           )}
+          {mode === 'register' && (
+            <div className="checkbox-group">
+              <label className="checkbox-item">
+                <input type="checkbox" checked={form.agreeTerms} onChange={(e) => setForm({ ...form, agreeTerms: e.target.checked })} />
+                <span>I agree to the <button type="button" className="checkbox-link" onClick={(e) => { e.preventDefault(); setShowTermsModal(true); }}>Terms & Conditions</button></span>
+              </label>
+              <label className="checkbox-item">
+                <input type="checkbox" checked={form.agreeAge} onChange={(e) => setForm({ ...form, agreeAge: e.target.checked })} />
+                <span>I confirm that I am 18 years or older.</span>
+              </label>
+            </div>
+          )}
           {error && <p className="error">{error}</p>}
-          <button className="primary full" disabled={busy}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}</button>
-          <button className="ghost full" type="button" onClick={() => { window.location.href = '/admin'; }}>Admin Login</button>
+          {showTermsModal && <TermsAndConditionsModal onClose={() => setShowTermsModal(false)} />}
+          <button className="primary full" disabled={busy || (mode === 'register' && !isRegisterValid)}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}</button>
+          {/* <button className="ghost full" type="button" onClick={() => { window.location.href = '/admin'; }}>Admin Login</button> */}
         </form>
       </div>
     </div>
