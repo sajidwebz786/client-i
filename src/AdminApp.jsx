@@ -861,9 +861,27 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
     onRefresh();
   }
 
+  async function deleteTask(item) {
+    if (!window.confirm(`Delete "${item.title}" permanently? This removes the task from member task lists.`)) return;
+    await api.delete(`/tasks/${item.id}`);
+    onRefresh();
+  }
+
+  async function deleteAllTasks() {
+    if (!tasks.length) return;
+    if (!window.confirm(`Delete all ${tasks.length} tasks permanently? This removes the current task library from member task lists.`)) return;
+    await Promise.all(tasks.map((item) => api.delete(`/tasks/${item.id}`)));
+    onRefresh();
+  }
+
   return (
     <div className="two-col">
       <Panel title="Task Library" icon={ClipboardCheck}>
+        {tasks.length ? (
+          <div className="panel-actions">
+            <button className="mini reject" onClick={deleteAllTasks}>Delete All Tasks</button>
+          </div>
+        ) : null}
         <DataTable
           columns={['Title', 'Platform', 'Reward', 'Status', 'Action']}
           rows={tasks.map((item) => [
@@ -874,7 +892,7 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
             <div className="row-actions">
               <button className="mini" onClick={() => editTask(item)}>Edit</button>
               <button className="mini" onClick={async () => { await api.put(`/tasks/${item.id}`, { status: item.status === 'active' ? 'inactive' : 'active' }); onRefresh(); }}>Status</button>
-              <button className="mini reject" onClick={async () => { if (window.confirm(`Deactivate ${item.title}?`)) { await api.delete(`/tasks/${item.id}`); onRefresh(); } }}>Deactivate</button>
+              <button className="mini reject" onClick={() => deleteTask(item)}>Delete</button>
             </div>
           ])}
           empty="No tasks created yet."

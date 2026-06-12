@@ -710,6 +710,12 @@ td {
   flex-wrap: wrap;
 }
 
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
 .mini {
   min-height: 32px;
   padding: 7px 11px;
