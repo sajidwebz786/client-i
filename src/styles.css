@@ -2332,9 +2332,78 @@ select:focus {
   background: linear-gradient(135deg, #ffb400, #f97316);
 }
 
+.primary,
+.upload-btn {
+  background: linear-gradient(135deg, #ffb400, #f97316);
+  color: #fff;
+  box-shadow: 0 16px 34px rgba(249, 115, 22, 0.24);
+}
+
+.ghost,
+.icon-btn {
+  border-color: rgba(249, 115, 22, 0.28);
+  background: #fff8ef;
+  color: #9a3412;
+}
+
+.ghost:hover,
+.icon-btn:hover,
+.upload-btn:hover,
+.footer-download-btn:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 14px 28px rgba(249, 115, 22, 0.18);
+}
+
+.nav button.active,
+.nav button:hover,
+.plan-switcher button.active,
+.calendar-day.today,
+.sketch-step.active {
+  color: #9a3412;
+}
+
+.plan-step span,
+.chain-row > span {
+  background: linear-gradient(135deg, #ffb400, #f97316);
+}
+
+.footer-download-btn {
+  background: linear-gradient(135deg, #ffb400, #f97316);
+  box-shadow: 0 16px 34px rgba(249, 115, 22, 0.24);
+}
+
 .task-link-runner,
 .footer {
   background: linear-gradient(145deg, #2a1608, #8c3b0a 58%, #f97316);
+}
+
+.balance-panel {
+  color: var(--ink);
+}
+
+.balance-panel svg {
+  color: var(--green-dark);
+}
+
+.balance-panel span,
+.balance-panel small {
+  color: var(--muted);
+}
+
+.balance-panel strong {
+  color: var(--ink);
+}
+
+.balance-panel input {
+  border-color: var(--line);
+  background: #fffdf9;
+  color: var(--ink);
+}
+
+.balance-panel .primary {
+  background: linear-gradient(135deg, #ffb400, #f97316);
+  color: #fff;
+  box-shadow: 0 16px 34px rgba(249, 115, 22, 0.24);
 }
 
 @media (max-width: 1080px) {

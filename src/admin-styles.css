@@ -988,6 +988,39 @@ thead th,
   background: #fff8ef;
 }
 
+.primary {
+  background: linear-gradient(135deg, #ffb400, #f97316);
+  color: #fff;
+  box-shadow: 0 16px 34px rgba(249, 115, 22, 0.24);
+}
+
+.ghost,
+.icon-btn,
+.mini {
+  border-color: rgba(249, 115, 22, 0.28);
+  background: #fff8ef;
+  color: #9a3412;
+}
+
+.ghost:hover,
+.icon-btn:hover,
+.mini:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 12px 24px rgba(249, 115, 22, 0.16);
+}
+
+.mini.approve {
+  background: linear-gradient(135deg, #ffb400, #f97316);
+  color: #fff;
+  border-color: transparent;
+}
+
+.mini.reject {
+  background: var(--coral-soft);
+  color: var(--coral);
+  border-color: transparent;
+}
+
 @media (max-width: 1120px) {
   .admin-shell {
     grid-template-columns: 1fr;
