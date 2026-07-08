@@ -117,7 +117,7 @@ function absoluteAssetUrl(path) {
 }
 
 function dailyAds(pkg) {
-  return Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
+  return Number(pkg.totalAdvertisements || pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
 }
 
 function dailyIncome(pkg) {
@@ -704,7 +704,7 @@ function PackagesPage({ packages, onRefresh }) {
       baseAmount: pkg.baseAmount || '',
       taxAmount: pkg.taxAmount || '',
       finalAmount: pkg.finalAmount || '',
-      dailyAdsRequired: pkg.dailyAdsRequired || pkg.minAdsRequired || '',
+      dailyAdsRequired: pkg.totalAdvertisements || pkg.dailyAdsRequired || pkg.minAdsRequired || '',
       earningPerAdvertisement: pkg.earningPerAdvertisement || perAdValue(pkg) || '',
       dailyWorkMinutes: pkg.dailyWorkMinutes || '',
       dailyDebitAmount: pkg.dailyDebitAmount || '',

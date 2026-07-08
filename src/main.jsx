@@ -242,7 +242,7 @@ function shareText(code) {
 }
 
 function dailyAds(pkg) {
-  return Number(pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
+  return Number(pkg.totalAdvertisements || pkg.dailyAdsRequired || pkg.minAdsRequired || 0);
 }
 
 function dailyTargetForPlans(plans = [], fallbackCount = 0) {
