@@ -157,8 +157,8 @@ function getTaskProgressSummary(userId, tasks = [], targetCount = tasks.length) 
 
 const demoPackages = [
   { id: 'pkg-1', name: '₹999 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
-  { id: 'pkg-2', name: '₹1,999 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 40, dailyAdsRequired: 40, dailyWorkMinutes: 60, monthlyGenerationAmount: 600, dailyDebitAmount: 20, freeBannerCount: 2 },
-  { id: 'pkg-3', name: '₹2,999 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 60, dailyAdsRequired: 60, dailyWorkMinutes: 120, monthlyGenerationAmount: 900, dailyDebitAmount: 30, freeBannerCount: 3 }
+  { id: 'pkg-2', name: '₹1,999 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 60, monthlyGenerationAmount: 600, dailyDebitAmount: 20, freeBannerCount: 2 },
+  { id: 'pkg-3', name: '₹2,999 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 120, monthlyGenerationAmount: 900, dailyDebitAmount: 30, freeBannerCount: 3 }
 ];
 
 const demoTasks = [
@@ -265,6 +265,7 @@ function dailyIncome(pkg) {
 }
 
 function perAdValue(pkg) {
+  if (pkg?.earningPerAdvertisement) return Number(pkg.earningPerAdvertisement);
   const ads = dailyAds(pkg);
   return ads ? dailyIncome(pkg) / ads : 0;
 }
@@ -501,7 +502,7 @@ function App() {
     let mounted = true;
     api.get('/auth/profile')
       .then((res) => {
-        if (mounted && res.data.user) updateStoredUser(res.data.user);
+        if (mounted && res.data.user) updateStoredUser({ ...res.data.user, subscription: res.data.subscription || res.data.user.subscription });
       })
       .catch(() => {});
     return () => {
@@ -746,10 +747,10 @@ function PackagesPage({ packages, isLoggedIn, setAuthOpen, setPaymentPackage }) 
               {index === 1 && <em>Popular</em>}
             </div>
             <strong>{money(packageBaseAmount(pkg))}</strong>
-            <p>{dailyAds(pkg)} ads daily · {pkg.dailyWorkMinutes || 0} minutes · {money(pkg.monthlyGenerationAmount)} monthly generation.</p>
+            <p>{dailyAds(pkg)} advertisements · {money(perAdValue(pkg))} per advertisement · {money(dailyIncome(pkg))} estimated daily earnings.</p>
             <ul>
-              <li><CheckCircle2 size={16} /> Approx daily income {money(dailyIncome(pkg))}</li>
-              <li><CheckCircle2 size={16} /> Per ad value {money(perAdValue(pkg))}</li>
+              <li><CheckCircle2 size={16} /> Total advertisements {dailyAds(pkg)}</li>
+              <li><CheckCircle2 size={16} /> Per advertisement earning {money(perAdValue(pkg))}</li>
               <li><CheckCircle2 size={16} /> Missed day debit {money(pkg.dailyDebitAmount)}</li>
             </ul>
             <button className="primary full" onClick={() => isLoggedIn ? setPaymentPackage(pkg) : setAuthOpen(true)}>
@@ -770,25 +771,25 @@ function DailyAdIncomePlan({ packages }) {
       <div className="income-plan-head">
         <div>
           <span className="section-kicker">Daily Advertisement Task Income Plan</span>
-          <h2>Complete daily ads to earn monthly rewards.</h2>
+          <h2>Complete your advertisements and follow every earning clearly.</h2>
         </div>
       </div>
       <div className="commission-table panel">
         <div className="commission-header">
           <span>Plan</span>
-          <span>Ads / Month</span>
+          <span>Total Ads</span>
           <span>Value / Ad</span>
         </div>
         {packages.map((pkg) => (
           <div className="commission-row" key={pkg.id}>
-            <span>{pkg.name} · {dailyAds(pkg)} ads</span>
-            <strong>{dailyAds(pkg) * 30}</strong>
+            <span>{pkg.name}</span>
+            <strong>{dailyAds(pkg)}</strong>
             <strong>{money(perAdValue(pkg))}</strong>
           </div>
         ))}
         <div className="commission-total">
-          <span>Monthly earnings are calculated on a 30-day cycle.</span>
-          <strong>₹0.50 per ad</strong>
+          <span>Each plan includes 20 advertisements after activation.</span>
+          <strong>₹0.50 to ₹1.50 per ad</strong>
         </div>
       </div>
     </div>
@@ -876,6 +877,7 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
   ];
   const code = user?.referralCode || '';
   const link = referralLink(code);
+  const subscription = user?.subscription || {};
 
   async function copyReferral() {
     await navigator.clipboard?.writeText(link);
@@ -900,6 +902,18 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
         ))}
       </div>
       <div className="portal-grid">
+        <article className="panel">
+          <h3>Plan Details</h3>
+          <div className="transaction-row"><span>Plan Name</span><strong>{subscription.planName || user?.package?.name || 'No active plan'}</strong></div>
+          <div className="transaction-row"><span>Plan Amount</span><strong>{money(subscription.planAmount || user?.package?.baseAmount)}</strong></div>
+          <div className="transaction-row"><span>Start Date</span><strong>{subscription.planStartDate || '-'}</strong></div>
+          <div className="transaction-row"><span>Expiry Date</span><strong>{subscription.planExpiryDate || '-'}</strong></div>
+          <div className="transaction-row"><span>Status</span><strong>{subscription.status || user?.status || 'inactive'}</strong></div>
+          <div className="transaction-row"><span>Remaining Ads</span><strong>{subscription.remainingAdvertisements ?? progressSummary.pending}</strong></div>
+          <div className="transaction-row"><span>Total Ads</span><strong>{subscription.totalAdvertisements ?? progressSummary.total}</strong></div>
+          <div className="transaction-row"><span>Completed Ads</span><strong>{subscription.advertisementsCompleted ?? progressSummary.completed}</strong></div>
+          <div className="transaction-row"><span>Remaining Tasks</span><strong>{subscription.remainingTasks ?? progressSummary.pending}</strong></div>
+        </article>
         <article className="panel">
           <h3>Invite Friends</h3>
           <div className="referral-box">
@@ -997,7 +1011,7 @@ function ProfilePage({ user, isLoggedIn, setAuthOpen, setNotice, onUserUpdate })
         });
       }
       const refreshed = await api.get('/auth/profile');
-      if (refreshed.data.user) onUserUpdate(refreshed.data.user);
+      if (refreshed.data.user) onUserUpdate({ ...refreshed.data.user, subscription: refreshed.data.subscription || refreshed.data.user.subscription });
       else if (res.data.user) onUserUpdate(res.data.user);
       showSuccess('Profile information updated.');
     } catch (err) {
@@ -1684,7 +1698,7 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
   const [bank, setBank] = useState({ bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '', upiId: '' });
   const [withdrawAmount, setWithdrawAmount] = useState('');
   if (!isLoggedIn) return <Gate title="Your rewards stay organized." text="Login to see your balance, save bank or UPI details, and request money when you are ready." action={setAuthOpen} />;
-  const withdrawalHistory = (wallet.transactions || []).filter((tx) => tx.category === 'withdrawal' || tx.type === 'debit');
+  const withdrawalHistory = (wallet.transactions || []).filter((tx) => tx.transactionType === 'withdrawal_request' || tx.category === 'withdrawal');
 
   async function saveBank() {
     try {
@@ -1717,9 +1731,9 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
         <article className="panel withdraw-history-panel">
           <h3>Withdraw History</h3>
           {withdrawalHistory.length ? withdrawalHistory.slice(0, 4).map((tx) => (
-            <div className="transaction-row" key={tx.id}>
-              <span>{tx.remarks || tx.category}</span>
-              <strong>{money(tx.amount)}</strong>
+            <div className="transaction-row" key={tx.transactionId || tx.id}>
+              <span>{tx.remarks || tx.transactionType || tx.category}</span>
+              <strong>{money(tx.amount)} · {tx.status || 'submitted'}</strong>
             </div>
           )) : <p className="muted">No withdrawal requests yet.</p>}
         </article>
@@ -1746,9 +1760,9 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
       <div className="panel recent-transactions-panel">
         <h3>Recent Transactions</h3>
         {(wallet.transactions || []).length ? wallet.transactions.map((tx) => (
-          <div className="transaction-row" key={tx.id}>
-            <span>{tx.remarks || tx.category}</span>
-            <strong>{money(tx.amount)}</strong>
+          <div className="transaction-row" key={tx.transactionId || tx.id}>
+            <span>{tx.remarks || tx.transactionType || tx.category}</span>
+            <strong>{money(tx.amount)} · {tx.status || tx.type}</strong>
           </div>
         )) : <p className="muted">No activity yet. Your rewards and requests will appear here.</p>}
       </div>
@@ -1832,7 +1846,7 @@ function PaymentModal({ pkg, onClose, setNotice }) {
       return;
     }
     if (!file) {
-      setNotice('Please upload the payment screenshot or receipt.');
+      setNotice('Please upload the payment proof or receipt.');
       return;
     }
     setBusy(true);
@@ -1877,8 +1891,8 @@ function PaymentModal({ pkg, onClose, setNotice }) {
         <form onSubmit={submit}>
           <input value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} placeholder="UTR / transaction number" required />
           <label className="file-field">
-            <Upload size={18} /> {file ? file.name : 'Upload screenshot or receipt'}
-            <input type="file" required onChange={(e) => setFile(e.target.files?.[0])} />
+            <Upload size={18} /> {file ? file.name : 'Upload payment proof or receipt'}
+            <input type="file" accept="image/*,application/pdf" required onChange={(e) => setFile(e.target.files?.[0])} />
           </label>
           <button className="primary full" disabled={busy}>{busy ? 'Submitting...' : 'Submit Payment Details'}</button>
         </form>

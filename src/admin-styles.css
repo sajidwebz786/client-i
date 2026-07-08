@@ -699,6 +699,11 @@ td {
   color: var(--gold);
 }
 
+.badge.blue {
+  background: rgba(37, 99, 235, 0.14);
+  color: #1d4ed8;
+}
+
 .badge.coral {
   background: var(--coral-soft);
   color: var(--coral);

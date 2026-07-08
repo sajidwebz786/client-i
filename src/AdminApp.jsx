@@ -125,6 +125,7 @@ function dailyIncome(pkg) {
 }
 
 function perAdValue(pkg) {
+  if (pkg?.earningPerAdvertisement) return Number(pkg.earningPerAdvertisement);
   const ads = dailyAds(pkg);
   return ads ? dailyIncome(pkg) / ads : 0;
 }
@@ -177,7 +178,8 @@ const demo = {
     dailyBusiness: [],
     packagePerformance: [],
     distributionReport: [],
-    withdrawalReport: []
+    withdrawalReport: [],
+    transactions: []
   },
   banners: []
 };
@@ -285,7 +287,8 @@ function useAdminData(enabled, refresh) {
       api.get('/tasks/admin/submissions'),
       api.get('/support/admin'),
       api.get('/admin/reports'),
-      api.get('/admin/banners')
+      api.get('/admin/banners'),
+      api.get('/admin/transactions')
     ]).then((results) => {
       if (!mounted) return;
       setData({
@@ -297,7 +300,7 @@ function useAdminData(enabled, refresh) {
         withdrawals: results[5].value?.data?.withdrawals || [],
         submissions: results[6].value?.data?.submissions || [],
         tickets: results[7].value?.data?.tickets || [],
-        reports: results[8].value?.data || demo.reports,
+        reports: { ...(results[8].value?.data || demo.reports), transactions: results[10].value?.data?.transactions || [] },
         banners: results[9].value?.data?.banners || []
       });
     });
@@ -358,13 +361,14 @@ function RegisteredUsersPanel({ users }) {
   return (
     <Panel title="Registered Users" icon={Users}>
       <DataTable
-        columns={['Name', 'Mobile', 'Email', 'Status', 'Package', 'Balance']}
+        columns={['Name', 'Mobile', 'Email', 'Status', 'Plan', 'Ads', 'Balance']}
         rows={(users || []).slice(0, 50).map((user) => [
           user.name,
           user.mobile,
           user.email,
           <Badge tone={user.status === 'active' ? 'green' : user.status === 'inactive' ? 'gray' : 'coral'}>{user.status}</Badge>,
-          user.package?.name || 'None',
+          user.subscription?.planName || user.package?.name || 'None',
+          `${user.subscription?.advertisementsCompleted ?? 0}/${user.subscription?.totalAdvertisements ?? 0}`,
           money(user.wallet?.balance || 0)
         ])}
         empty="No registered users yet."
@@ -400,7 +404,7 @@ function Dashboard({ data }) {
       <div className="two-col">
         <Panel title="Approval Priorities" icon={SlidersHorizontal}>
           <QueueRow label="Pending payments" value={data.totals.pendingPayments || 0} tone="gold" />
-          <QueueRow label="Task screenshots" value={data.totals.pendingTaskApprovals || 0} tone="green" />
+          <QueueRow label="Task proof" value={data.totals.pendingTaskApprovals || 0} tone="green" />
           <QueueRow label="Withdrawal requests" value={data.totals.pendingWithdrawals || 0} tone="coral" />
         </Panel>
         <Panel title="Business Snapshot" icon={FileBarChart}>
@@ -521,11 +525,12 @@ function UsersPage({ users, onRefresh }) {
   return (
     <Panel title="Member Management" icon={Users} action={<SearchBox />}>
       <DataTable
-        columns={['Name', 'Contact', 'Approved Plans', 'Sponsor', 'Status', 'Action']}
+        columns={['Name', 'Contact', 'Approved Plans', 'Subscription', 'Sponsor', 'Status', 'Action']}
         rows={users.map((user) => [
           user.name,
           `${user.email || ''}\n${user.mobile || ''}`,
           approvedPlanNames(user),
+          `${user.subscription?.status || 'inactive'} · ${user.subscription?.advertisementsCompleted ?? 0}/${user.subscription?.totalAdvertisements ?? 0} ads · remaining ${user.subscription?.remainingAdvertisements ?? 0}`,
           user.sponsor?.name || 'Direct',
           <Badge tone={user.status === 'active' ? 'green' : user.status === 'blocked' ? 'coral' : 'gold'}>{user.status}</Badge>,
           <div className="row-actions">
@@ -738,7 +743,7 @@ function PackagesPage({ packages, onRefresh }) {
             <input type="number" placeholder="Final amount (auto if blank)" value={form.finalAmount} onChange={(e) => setForm({ ...form, finalAmount: e.target.value })} />
             <input required type="number" min="0" placeholder="Daily ads required" value={form.dailyAdsRequired} onChange={(e) => setForm({ ...form, dailyAdsRequired: e.target.value })} />
             <input required type="number" min="0" placeholder="Daily work minutes" value={form.dailyWorkMinutes} onChange={(e) => setForm({ ...form, dailyWorkMinutes: e.target.value })} />
-            <input required type="number" min="0" placeholder="Monthly generation amount" value={form.monthlyGenerationAmount} onChange={(e) => setForm({ ...form, monthlyGenerationAmount: e.target.value })} />
+            <input required type="number" min="0" placeholder="Estimated monthly earnings" value={form.monthlyGenerationAmount} onChange={(e) => setForm({ ...form, monthlyGenerationAmount: e.target.value })} />
             <input required type="number" min="0" step="0.01" placeholder="Daily debit amount" value={form.dailyDebitAmount} onChange={(e) => setForm({ ...form, dailyDebitAmount: e.target.value })} />
             <input type="number" min="0" placeholder="Free banner count" value={form.freeBannerCount} onChange={(e) => setForm({ ...form, freeBannerCount: e.target.value })} />
             <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option></select>
@@ -796,7 +801,7 @@ function PaymentsPage({ payments, onRefresh }) {
             <img className="admin-qr-img compact" src={paymentQrImage} alt="Payment QR code" />
           </div>
           <div className="payment-checks">
-            <QueueRow label="Check uploaded screenshot" value="Required" tone="gold" />
+            <QueueRow label="Check payment proof" value="Required" tone="gold" />
             <QueueRow label="Match UTR / transaction number" value="Required" tone="green" />
             <QueueRow label="Approve only after received amount" value="Manual" tone="coral" />
           </div>
@@ -804,13 +809,14 @@ function PaymentsPage({ payments, onRefresh }) {
       </Panel>
       <Panel title="Payment Approvals" icon={CreditCard} action={<SearchBox />}>
         <DataTable
-          columns={['User', 'Package', 'Amount', 'Mode', 'UTR', 'Status', 'Action']}
+          columns={['User', 'Package', 'Amount', 'Mode', 'UTR', 'Proof', 'Status', 'Action']}
           rows={payments.map((payment) => [
             payment.user?.name || 'Member',
             payment.package?.name || '-',
             money(payment.amount),
             payment.paymentMode,
             payment.utrNumber || '-',
+            payment.proofUrl || payment.screenshot ? <a className="mini" href={payment.proofUrl || absoluteAssetUrl(payment.screenshot)} target="_blank" rel="noreferrer">View / Download</a> : '-',
             <Badge tone={payment.status === 'approved' ? 'green' : payment.status === 'rejected' ? 'coral' : 'gold'}>{payment.status}</Badge>,
             <ActionPair onApprove={() => decide(payment.id, 'approve')} onReject={() => decide(payment.id, 'reject')} disabled={payment.status !== 'pending'} />
           ])}
@@ -940,19 +946,22 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
 
 function WithdrawalsPage({ withdrawals, onRefresh }) {
   async function decide(id, action) {
-    await api.put(`/withdrawals/admin/${id}/${action}`, action === 'paid' ? undefined : { adminRemarks: action });
+    const transactionNumber = action === 'paid' ? window.prompt('Transaction reference number') : '';
+    await api.put(`/withdrawals/admin/${id}/${action}`, action === 'paid' ? { transactionNumber, adminRemarks: 'Amount credited' } : { adminRemarks: action });
     onRefresh();
   }
 
   return (
     <Panel title="Withdrawal Desk" icon={Wallet}>
       <DataTable
-        columns={['User', 'Amount', 'Bank / UPI', 'Status', 'Action']}
+        columns={['User', 'Amount', 'Bank / UPI', 'Status', 'Payment Ref', 'Timeline', 'Action']}
         rows={withdrawals.map((item) => [
           item.user?.name || 'Member',
           money(item.amount),
           item.bankSnapshot?.upiId || item.bankSnapshot?.bankName || '-',
-          <Badge tone={item.status === 'paid' ? 'green' : item.status === 'rejected' ? 'coral' : 'gold'}>{item.status}</Badge>,
+          <Badge tone={item.statusColor === 'green' ? 'green' : item.statusColor === 'red' ? 'coral' : item.statusColor === 'blue' ? 'blue' : 'gold'}>{item.statusLabel || item.status}</Badge>,
+          item.transactionReferenceNumber || '-',
+          (item.timeline || []).map((step) => step.label || step.status).join(' > ') || '-',
           <div className="row-actions">
             <button className="mini approve" onClick={() => decide(item.id, 'approve')} disabled={item.status !== 'pending'}>Approve</button>
             <button className="mini" onClick={() => decide(item.id, 'paid')} disabled={item.status !== 'approved'}>Paid</button>
@@ -1023,10 +1032,11 @@ function ReportsPage({ reports }) {
     item.count,
     money(item.amount)
   ]);
-  const transactionRows = (reports.recentTransactions || []).map((item) => [
-    item.createdAt ? new Date(item.createdAt).toLocaleString() : '-',
-    item.type,
-    item.category,
+  const transactionRows = (reports.transactions || reports.recentTransactions || []).map((item) => [
+    item.date && item.time ? `${item.date} ${item.time}` : (item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'),
+    item.customer?.name || '-',
+    item.transactionType || item.category,
+    item.status || item.type,
     money(item.amount),
     item.remarks || '-'
   ]);
@@ -1073,11 +1083,11 @@ function ReportsPage({ reports }) {
           empty="No withdrawal records yet."
         />
         <ReportPanel
-          title="Recent Wallet Transaction Report"
+          title="Complete Transaction History"
           icon={CreditCard}
-          columns={['Date', 'Type', 'Category', 'Amount', 'Remarks']}
+          columns={['Date', 'Customer', 'Type', 'Status', 'Amount', 'Remarks']}
           rows={transactionRows}
-          empty="No wallet transactions yet."
+          empty="No transactions yet."
         />
       </div>
     </div>
