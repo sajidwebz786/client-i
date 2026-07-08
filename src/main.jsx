@@ -168,6 +168,15 @@ const demoTasks = [
   { id: 'task-3', title: 'Follow a launch page', platform: 'instagram', rewardAmount: 20, description: 'Support a new campaign page and share your completion screen.', taskUrl: 'https://instagram.com' }
 ];
 
+const freeTaskPlan = {
+  id: 'free-ads',
+  name: 'Free Ads',
+  totalAdvertisements: 10,
+  dailyAdsRequired: 10,
+  earningPerAdvertisement: 0.5,
+  monthlyGenerationAmount: 150
+};
+
 const services = [
   ['Advertising Promotion', 'TV, banners, YouTube, newspaper, and social media advertising.'],
   ['Digital Marketing', 'Instagram, Facebook, Google, WhatsApp, and website promotion.'],
@@ -839,9 +848,10 @@ function ReferralIncomePlan() {
         <article className="panel">
           <h3>How It Works</h3>
           {[
-            'Invite a member directly and receive 10% after their joining is confirmed.',
-            'When your referred member invites others, income is paid by level.',
-            'Income is paid up to Level 10 as per the commission structure.',
+            'Free joiners can complete 10 free ads at ₹0.50 per ad.',
+            'For free joiners, only the direct referrer receives 10% commission.',
+            'Levels 2 to 10 do not receive commission from free ad activity.',
+            'After package activation, the full paid referral structure applies up to Level 10.',
             'If someone joins without a referral, income is handled by the office account automatically.'
           ].map((text, index) => (
             <div className="plan-step" key={text}>
@@ -1288,7 +1298,9 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
   const taskPlanIds = new Set(sortedTasks.map(taskPackageId).filter(Boolean));
   if (userPlanId) taskPlanIds.add(userPlanId);
   const visiblePlans = sortedPackages.filter((pkg) => taskPlanIds.has(pkg.id));
-  const firstPlanId = visiblePlans[0]?.id || sortedPackages[0]?.id || '';
+  const isFreeJoiner = !userPlanId && !visiblePlans.length;
+  const taskPlans = isFreeJoiner ? [freeTaskPlan] : (visiblePlans.length ? visiblePlans : sortedPackages.slice(0, 3));
+  const firstPlanId = taskPlans[0]?.id || '';
   const [selectedPlan, setSelectedPlan] = useState(userPlanId || firstPlanId);
   const [progressVersion, setProgressVersion] = useState(0);
   const [activeTaskId, setActiveTaskId] = useState('');
@@ -1323,9 +1335,9 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
     if (!rowsByPlan.has(planId)) rowsByPlan.set(planId, []);
     rowsByPlan.get(planId).push(row);
   }
-  const priorityPlanWithPending = visiblePlans.find((pkg) => (rowsByPlan.get(pkg.id) || []).some((row) => Number(row.progress.percent || 0) < 100));
+  const priorityPlanWithPending = taskPlans.find((pkg) => (rowsByPlan.get(pkg.id) || []).some((row) => Number(row.progress.percent || 0) < 100));
   const effectivePlanId = priorityPlanWithPending?.id || selectedPlan || firstPlanId;
-  const activePlan = sortedPackages.find((pkg) => pkg.id === effectivePlanId) || visiblePlans[0] || sortedPackages[0];
+  const activePlan = taskPlans.find((pkg) => pkg.id === effectivePlanId) || taskPlans[0];
   const planLabels = ['A Plan', 'B Plan', 'C Plan'];
   const effectiveRows = progressSummary.rows.filter((row) => {
     const planId = taskPackageId(row.task);
@@ -1345,7 +1357,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       <span className="section-kicker">Activities</span>
       <h2>Monthly calendar-based ad tasks.</h2>
       <div className="plan-switcher" aria-label="Task plan selector">
-        {(visiblePlans.length ? visiblePlans : sortedPackages.slice(0, 3)).map((pkg, index) => (
+        {taskPlans.map((pkg, index) => (
           <button key={pkg.id} className={activePlan?.id === pkg.id ? 'active' : ''} onClick={() => setSelectedPlan(pkg.id)}>
             <strong>{planLabels[index] || pkg.name}</strong>
             <span>{pkg.name}</span>
@@ -1387,7 +1399,11 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
           ))}
         </div>
       </div>
-      <p className="muted task-policy">Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.</p>
+      <p className="muted task-policy">
+        {isFreeJoiner
+          ? 'Complete the free daily ad count to receive free ad earnings. Package debit rules start only after package activation.'
+          : 'Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.'}
+      </p>
       {currentTask && (
         <div className="task-sequence-panel">
           <strong>Current task {currentTaskNumber} of {activePlanTarget}</strong>

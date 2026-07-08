@@ -1,18 +1,18 @@
 :root {
   color-scheme: light;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --ink: #0b1424;
-  --muted: #64748b;
-  --line: #e2e8f0;
+  --ink: #1f1308;
+  --muted: #7a5d45;
+  --line: #f1d9bd;
   --paper: #ffffff;
-  --soft: #f7f8fb;
-  --mint: #fff4df;
+  --soft: #fff8ef;
+  --mint: #fff2dd;
   --green: #f59e0b;
   --green-dark: #ea7a11;
   --gold: #f7b500;
   --coral: #e66b5b;
-  --navy: #071121;
-  --shadow: 0 24px 70px rgba(7, 17, 33, 0.13);
+  --navy: #2a1608;
+  --shadow: 0 24px 70px rgba(154, 86, 12, 0.13);
 }
 
 * {
@@ -21,7 +21,8 @@
 
 body {
   margin: 0;
-  background: var(--soft);
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fff8ef 42%, #fff3e3 100%);
   color: var(--ink);
 }
 
@@ -39,6 +40,8 @@ button {
 
 .app {
   min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 248, 239, 0.94) 52%, rgba(255, 243, 226, 0.96) 100%);
 }
 
 .app-loading {
@@ -59,9 +62,10 @@ button {
   justify-content: space-between;
   gap: 22px;
   padding: 18px clamp(18px, 5vw, 64px);
-  background: rgba(255, 255, 255, 0.88);
-  border-bottom: 1px solid rgba(219, 227, 239, 0.82);
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid rgba(241, 217, 189, 0.95);
   backdrop-filter: blur(18px);
+  box-shadow: 0 14px 34px rgba(234, 122, 17, 0.08);
 }
 
 .brand,
@@ -2241,6 +2245,96 @@ select:focus {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* White-orange theme pass for customer and logged-in surfaces. */
+.section,
+.band {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 248, 239, 0.74));
+}
+
+.metric,
+.service-card,
+.package-card,
+.panel,
+.stat-card,
+.task-card,
+.gate-card,
+.balance-panel,
+.contact-panel,
+.calendar-shell,
+.auth-modal {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #ffffff 0%, #fffdf9 100%);
+  box-shadow: 0 18px 46px rgba(154, 86, 12, 0.09);
+}
+
+.stat-card,
+.task-summary-panel,
+.profile-main-panel,
+.profile-level-panel,
+.withdraw-history-panel,
+.recent-transactions-panel,
+.support .panel {
+  background: linear-gradient(180deg, #ffffff 0%, #fff9f0 100%);
+}
+
+.panel h3,
+.package-top,
+.stat-card strong,
+.calendar-head strong,
+.task-sequence-panel strong {
+  color: var(--ink);
+}
+
+.ghost,
+.upload-btn,
+.icon-btn,
+input,
+textarea,
+select {
+  border-color: var(--line);
+  background: #fffdf9;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 0;
+  border-color: rgba(249, 115, 22, 0.62);
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.13);
+}
+
+.calendar-weekdays span,
+.calendar-day.blank,
+.auth-tabs,
+.table-wrap,
+.transaction-row:nth-child(even) {
+  background: #fff8ef;
+}
+
+.calendar-day {
+  background: #fffdf9;
+}
+
+.daily-progress-panel,
+.task-sequence-panel,
+.plan-switcher button.active,
+.sketch-step.active,
+.task-plan-note {
+  border-color: rgba(249, 115, 22, 0.36);
+  background: linear-gradient(180deg, #fff3df 0%, #fff8ef 100%);
+}
+
+.auth-tabs button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #ffb400, #f97316);
+}
+
+.task-link-runner,
+.footer {
+  background: linear-gradient(145deg, #2a1608, #8c3b0a 58%, #f97316);
 }
 
 @media (max-width: 1080px) {
