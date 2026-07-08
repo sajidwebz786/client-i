@@ -81,6 +81,7 @@ api.interceptors.response.use(
 );
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
+const formatDate = (value) => (value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const progressSyncCache = new Map();
 
 function todayKey() {
@@ -178,20 +179,30 @@ const services = [
   ['Local Area Promotion', 'Pamphlets, banners, announcements, and neighborhood outreach.']
 ];
 
-function getMonthlyCalendar(date = new Date()) {
+function getMonthlyCalendar(date = new Date(), allocatedCount = 0, completedToday = 0) {
   const year = date.getFullYear();
   const month = date.getMonth();
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const days = [];
+  const dailyCount = Number(allocatedCount || 0);
+  const completedCount = Math.min(Number(completedToday || 0), dailyCount);
 
   for (let i = 0; i < firstDay.getDay(); i += 1) {
     days.push({ key: `blank-start-${i}`, blank: true });
   }
 
   for (let day = 1; day <= lastDay.getDate(); day += 1) {
-    const status = day < date.getDate() - 1 ? 'completed' : day === date.getDate() ? 'progress' : day < date.getDate() ? 'missed' : 'pending';
-    days.push({ key: `${year}-${month}-${day}`, day, status, count: 10 + (day % 6) });
+    const isToday = day === date.getDate();
+    const status = day < date.getDate() - 1 ? 'completed' : isToday ? (dailyCount && completedCount >= dailyCount ? 'completed' : 'progress') : day < date.getDate() ? 'missed' : 'pending';
+    days.push({
+      key: `${year}-${month}-${day}`,
+      day,
+      status,
+      count: dailyCount,
+      completedCount: isToday ? completedCount : status === 'completed' ? dailyCount : 0,
+      remainingCount: isToday ? Math.max(dailyCount - completedCount, 0) : dailyCount
+    });
   }
 
   while (days.length % 7 !== 0) {
@@ -385,6 +396,8 @@ function App() {
   const packages = useApiData('/packages', demoPackages, (data) => data.packages || demoPackages);
   const tasks = useApiData(isLoggedIn ? '/tasks' : null, demoTasks, (data) => data.tasks || demoTasks);
   const wallet = useApiData(isLoggedIn ? '/wallet' : null, { wallet: { totalEarned: 0, availableBalance: 0, withdrawnAmount: 0 }, transactions: [] }, (data) => data);
+  const withdrawals = useApiData(isLoggedIn ? '/withdrawals/my' : null, { withdrawals: [] }, (data) => data);
+  const payments = useApiData(isLoggedIn ? '/payments/my' : null, { payments: [] }, (data) => data);
   const publicHome = useApiData('/public/home', { banners: [], packages: demoPackages, latestTasks: demoTasks }, (data) => data);
 
   useEffect(() => {
@@ -401,13 +414,23 @@ function App() {
           if (!cancelled) tasks.setData(res.data.tasks || []);
         })
         .catch(() => {});
+      api.get('/withdrawals/my', { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
+        .then((res) => {
+          if (!cancelled) withdrawals.setData(res.data);
+        })
+        .catch(() => {});
+      api.get('/payments/my', { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
+        .then((res) => {
+          if (!cancelled) payments.setData(res.data);
+        })
+        .catch(() => {});
     };
     window.addEventListener('luminateads-wallet-refresh', refreshWallet);
     return () => {
       cancelled = true;
       window.removeEventListener('luminateads-wallet-refresh', refreshWallet);
     };
-  }, [isLoggedIn, wallet.setData, tasks.setData]);
+  }, [isLoggedIn, wallet.setData, tasks.setData, withdrawals.setData, payments.setData]);
 
   const navItems = [
     ['home', 'Home'],
@@ -561,7 +584,7 @@ function App() {
         {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} tasks={tasks.data} />}
         {active === 'profile' && <ProfilePage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} onUserUpdate={updateStoredUser} />}
         {active === 'tasks' && <TasksPage tasks={tasks.data} packages={packages.data} user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
-        {active === 'wallet' && <WalletPage wallet={wallet.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
+        {active === 'wallet' && <WalletPage wallet={wallet.data} withdrawals={withdrawals.data} payments={payments.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
         {active === 'support' && <SupportPage isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
       </main>
 
@@ -1294,7 +1317,6 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
   }, [activeTaskId, inProgressTask?.task?.id, progressSummary.rows]);
 
   if (!isLoggedIn) return <Gate title="Daily ad activities" text="Login to see today’s assigned tasks and track your completion." action={setAuthOpen} />;
-  const calendar = getMonthlyCalendar();
   const rowsByPlan = new Map();
   for (const row of progressSummary.rows) {
     const planId = taskPackageId(row.task) || firstPlanId;
@@ -1313,6 +1335,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
   const activePlanCompleted = effectiveRows.filter((row) => Number(row.progress.percent || 0) >= 100).length;
   const activePlanPending = Math.max(activePlanTarget - activePlanCompleted, 0);
   const activePlanAverage = activePlanTarget ? Math.round(effectiveRows.reduce((sum, row) => sum + Number(row.progress.percent || 0), 0) / activePlanTarget) : 0;
+  const calendar = getMonthlyCalendar(new Date(), activePlanTarget, activePlanCompleted);
   const nextTaskRow = effectiveRows.find((row) => Number(row.progress.percent || 0) < 100);
   const currentTask = nextTaskRow?.task || null;
   const currentTaskNumber = currentTask ? effectiveRows.findIndex((row) => row.task.id === currentTask.id) + 1 : activePlanTarget;
@@ -1358,7 +1381,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
               <button className={`calendar-day ${item.status}`} key={item.key}>
                 <strong>{item.day}</strong>
                 <span>{calendarStatusLabel(item.status)}</span>
-                <small>{item.count} ads</small>
+                <small>{item.completedCount ? `${item.completedCount}/${item.count} ads` : `${item.count} ads`}</small>
               </button>
             )
           ))}
@@ -1695,11 +1718,25 @@ function getYouTubeId(url) {
   return '';
 }
 
-function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
+function withdrawalTone(statusColor, status) {
+  if (statusColor === 'green' || status === 'paid') return 'green';
+  if (statusColor === 'blue' || status === 'approved') return 'blue';
+  if (statusColor === 'red' || status === 'processing' || status === 'rejected') return 'coral';
+  return 'gold';
+}
+
+function WithdrawalStatus({ item }) {
+  return <span className={`badge ${withdrawalTone(item.statusColor, item.status)}`}>{item.statusLabel || item.status || 'Initiated'}</span>;
+}
+
+function WalletPage({ wallet, withdrawals, payments, isLoggedIn, setAuthOpen, setNotice }) {
   const [bank, setBank] = useState({ bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '', upiId: '' });
   const [withdrawAmount, setWithdrawAmount] = useState('');
   if (!isLoggedIn) return <Gate title="Your rewards stay organized." text="Login to see your balance, save bank or UPI details, and request money when you are ready." action={setAuthOpen} />;
-  const withdrawalHistory = (wallet.transactions || []).filter((tx) => tx.transactionType === 'withdrawal_request' || tx.category === 'withdrawal');
+  const withdrawalHistory = (withdrawals?.withdrawals || []).length
+    ? withdrawals.withdrawals
+    : (wallet.transactions || []).filter((tx) => tx.transactionType === 'withdrawal_request' || tx.category === 'withdrawal');
+  const paymentHistory = payments?.payments || [];
 
   async function saveBank() {
     try {
@@ -1731,10 +1768,45 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
         </article>
         <article className="panel withdraw-history-panel">
           <h3>Withdraw History</h3>
-          {withdrawalHistory.length ? withdrawalHistory.slice(0, 4).map((tx) => (
-            <div className="transaction-row" key={tx.transactionId || tx.id}>
-              <span>{tx.remarks || tx.transactionType || tx.category}</span>
-              <strong>{money(tx.amount)} · {tx.status || 'submitted'}</strong>
+          {withdrawalHistory.length ? withdrawalHistory.map((tx) => (
+            <div className="withdrawal-history-card" key={tx.id || tx.transactionId}>
+              <div className="transaction-row">
+                <span>ID</span>
+                <strong>{tx.id || tx.transactionId}</strong>
+              </div>
+              <div className="transaction-row">
+                <span>Request Date</span>
+                <strong>{formatDate(tx.requestDate || tx.createdAt || tx.date)}</strong>
+              </div>
+              <div className="transaction-row">
+                <span>Request Amount</span>
+                <strong>{money(tx.amount)}</strong>
+              </div>
+              <div className="transaction-row">
+                <span>Status</span>
+                <strong><WithdrawalStatus item={tx} /></strong>
+              </div>
+              <div className="transaction-row">
+                <span>Payment Date</span>
+                <strong>{formatDate(tx.paymentDate || tx.paidAt) || '-'}</strong>
+              </div>
+              <div className="transaction-row">
+                <span>Transaction Reference</span>
+                <strong>{tx.transactionReferenceNumber || tx.transactionNumber || '-'}</strong>
+              </div>
+              <div className="transaction-row">
+                <span>Remarks</span>
+                <strong>{tx.remarks || tx.adminRemarks || '-'}</strong>
+              </div>
+              {(tx.timeline || tx.approvalHistory || []).length > 0 && (
+                <div className="withdrawal-timeline">
+                  {(tx.timeline || tx.approvalHistory || []).map((step, index) => (
+                    <span className={`timeline-chip ${withdrawalTone(step.color, step.status)}`} key={`${step.status}-${step.updatedAt || index}`}>
+                      {step.label || step.status} · {formatDate(step.updatedAt)} {step.updatedBy?.name ? `· ${step.updatedBy.name}` : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )) : <p className="muted">No withdrawal requests yet.</p>}
         </article>
@@ -1761,11 +1833,51 @@ function WalletPage({ wallet, isLoggedIn, setAuthOpen, setNotice }) {
       <div className="panel recent-transactions-panel">
         <h3>Recent Transactions</h3>
         {(wallet.transactions || []).length ? wallet.transactions.map((tx) => (
-          <div className="transaction-row" key={tx.transactionId || tx.id}>
-            <span>{tx.remarks || tx.transactionType || tx.category}</span>
-            <strong>{money(tx.amount)} · {tx.status || tx.type}</strong>
+          <div className="withdrawal-history-card" key={tx.transactionId || tx.id}>
+            <div className="transaction-row">
+              <span>Transaction ID</span>
+              <strong>{tx.transactionId || tx.id}</strong>
+            </div>
+            <div className="transaction-row">
+              <span>Date / Time</span>
+              <strong>{tx.date && tx.time ? `${tx.date} ${tx.time}` : formatDate(tx.createdAt)}</strong>
+            </div>
+            <div className="transaction-row">
+              <span>Type</span>
+              <strong>{tx.transactionType || tx.category || tx.type}</strong>
+            </div>
+            <div className="transaction-row">
+              <span>Amount</span>
+              <strong>{money(tx.amount)}</strong>
+            </div>
+            <div className="transaction-row">
+              <span>Status</span>
+              <strong>{tx.status || tx.type || '-'}</strong>
+            </div>
+            <div className="transaction-row">
+              <span>Final Credited Amount</span>
+              <strong>{tx.finalCreditedAmount === null || tx.finalCreditedAmount === undefined ? '-' : money(tx.finalCreditedAmount)}</strong>
+            </div>
+            <div className="transaction-row">
+              <span>Remarks</span>
+              <strong>{tx.remarks || '-'}</strong>
+            </div>
           </div>
         )) : <p className="muted">No activity yet. Your rewards and requests will appear here.</p>}
+      </div>
+      <div className="panel recent-transactions-panel">
+        <h3>Payment History</h3>
+        {paymentHistory.length ? paymentHistory.map((payment) => (
+          <div className="transaction-row" key={payment.id}>
+            <span>{payment.package?.name || 'Subscription Payment'} · {formatDate(payment.createdAt)}</span>
+            <strong>
+              {money(payment.amount)} · {payment.status}
+              {(payment.proofUrl || payment.screenshot) && (
+                <a className="mini-link" href={payment.proofUrl || absoluteAssetUrl(payment.screenshot)} target="_blank" rel="noreferrer">View / Download</a>
+              )}
+            </strong>
+          </div>
+        )) : <p className="muted">Uploaded payment proofs will appear here after submission.</p>}
       </div>
     </section>
   );

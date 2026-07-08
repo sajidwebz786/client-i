@@ -955,14 +955,21 @@ function WithdrawalsPage({ withdrawals, onRefresh }) {
   return (
     <Panel title="Withdrawal Desk" icon={Wallet}>
       <DataTable
-        columns={['User', 'Amount', 'Bank / UPI', 'Status', 'Payment Ref', 'Timeline', 'Action']}
+        columns={['Customer', 'Requested Amount', 'Request Date', 'Status', 'Payment Date', 'Transaction Number', 'Approval History', 'Action']}
         rows={withdrawals.map((item) => [
           item.user?.name || 'Member',
           money(item.amount),
-          item.bankSnapshot?.upiId || item.bankSnapshot?.bankName || '-',
+          item.requestDate ? new Date(item.requestDate).toLocaleString() : '-',
           <Badge tone={item.statusColor === 'green' ? 'green' : item.statusColor === 'red' ? 'coral' : item.statusColor === 'blue' ? 'blue' : 'gold'}>{item.statusLabel || item.status}</Badge>,
-          item.transactionReferenceNumber || '-',
-          (item.timeline || []).map((step) => step.label || step.status).join(' > ') || '-',
+          item.paymentDate ? new Date(item.paymentDate).toLocaleString() : '-',
+          item.transactionReferenceNumber || item.transactionNumber || '-',
+          <div className="timeline-list">
+            {(item.timeline || item.approvalHistory || []).map((step, index) => (
+              <span className={`badge ${step.color === 'green' ? 'green' : step.color === 'red' ? 'coral' : step.color === 'blue' ? 'blue' : 'gold'}`} key={`${step.status}-${step.updatedAt || index}`}>
+                {step.label || step.status} · {step.updatedAt ? new Date(step.updatedAt).toLocaleString() : '-'}{step.updatedBy?.name ? ` · ${step.updatedBy.name}` : ''}
+              </span>
+            ))}
+          </div>,
           <div className="row-actions">
             <button className="mini approve" onClick={() => decide(item.id, 'approve')} disabled={item.status !== 'pending'}>Approve</button>
             <button className="mini" onClick={() => decide(item.id, 'paid')} disabled={item.status !== 'approved'}>Paid</button>
@@ -1011,6 +1018,7 @@ function ReportPanel({ title, icon, columns, rows, empty }) {
 }
 
 function ReportsPage({ reports }) {
+  const [filters, setFilters] = useState({ customer: '', date: '', plan: '', status: '', transactionType: '' });
   const dailyRows = (reports.dailyBusiness || []).map((item) => [
     item.date,
     item.registrations,
@@ -1033,7 +1041,15 @@ function ReportsPage({ reports }) {
     item.count,
     money(item.amount)
   ]);
-  const transactionRows = (reports.transactions || reports.recentTransactions || []).map((item) => [
+  const allTransactions = reports.transactions || reports.recentTransactions || [];
+  const planOptions = [...new Set(allTransactions.map((item) => item.plan?.name).filter(Boolean))];
+  const filteredTransactions = allTransactions
+    .filter((item) => !filters.customer || `${item.customer?.name || ''} ${item.customer?.email || ''} ${item.customer?.mobile || ''}`.toLowerCase().includes(filters.customer.toLowerCase()))
+    .filter((item) => !filters.date || item.date === filters.date || String(item.createdAt || '').startsWith(filters.date))
+    .filter((item) => !filters.plan || item.plan?.name === filters.plan)
+    .filter((item) => !filters.status || item.status === filters.status || item.type === filters.status)
+    .filter((item) => !filters.transactionType || item.transactionType === filters.transactionType || item.category === filters.transactionType);
+  const transactionRows = filteredTransactions.map((item) => [
     item.date && item.time ? `${item.date} ${item.time}` : (item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'),
     item.customer?.name || '-',
     item.transactionType || item.category,
@@ -1083,6 +1099,26 @@ function ReportsPage({ reports }) {
           rows={withdrawalRows}
           empty="No withdrawal records yet."
         />
+        <Panel title="Transaction Filters" icon={SlidersHorizontal}>
+          <div className="form-grid">
+            <input placeholder="Customer" value={filters.customer} onChange={(e) => setFilters({ ...filters, customer: e.target.value })} />
+            <input type="date" value={filters.date} onChange={(e) => setFilters({ ...filters, date: e.target.value })} />
+            <select value={filters.plan} onChange={(e) => setFilters({ ...filters, plan: e.target.value })}>
+              <option value="">All Plans</option>
+              {planOptions.map((plan) => <option key={plan} value={plan}>{plan}</option>)}
+            </select>
+            <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+              <option value="">All Status</option>
+              {['pending', 'approved', 'submitted', 'completed', 'paid', 'rejected', 'credit', 'debit'].map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+            <select value={filters.transactionType} onChange={(e) => setFilters({ ...filters, transactionType: e.target.value })}>
+              <option value="">All Types</option>
+              {['subscription_payment', 'advertisement_earning', 'referral_earning', 'withdrawal_request', 'task_income', 'referral_income', 'withdrawal'].map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </div>
+        </Panel>
+      </div>
+      <div className="two-col">
         <ReportPanel
           title="Complete Transaction History"
           icon={CreditCard}

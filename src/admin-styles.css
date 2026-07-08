@@ -709,6 +709,13 @@ td {
   color: var(--coral);
 }
 
+.timeline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 220px;
+}
+
 .row-actions {
   display: flex;
   gap: 8px;
