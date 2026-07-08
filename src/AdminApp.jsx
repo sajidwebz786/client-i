@@ -121,6 +121,7 @@ function dailyAds(pkg) {
 }
 
 function dailyIncome(pkg) {
+  if (pkg?.earningPerAdvertisement) return dailyAds(pkg) * Number(pkg.earningPerAdvertisement);
   return Number(pkg.monthlyGenerationAmount || 0) / 30;
 }
 
@@ -667,7 +668,7 @@ function HierarchyTree({ node, root = false }) {
 }
 
 function PackagesPage({ packages, onRefresh }) {
-  const emptyForm = { name: '', baseAmount: '', taxAmount: '0', finalAmount: '', dailyAdsRequired: '', dailyWorkMinutes: '', monthlyGenerationAmount: '', dailyDebitAmount: '', freeBannerCount: '', status: 'active' };
+  const emptyForm = { name: '', baseAmount: '', taxAmount: '0', finalAmount: '', dailyAdsRequired: '20', earningPerAdvertisement: '', dailyWorkMinutes: '', dailyDebitAmount: '', freeBannerCount: '', status: 'active' };
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState('');
 
@@ -680,8 +681,8 @@ function PackagesPage({ packages, onRefresh }) {
       finalAmount: Number(form.finalAmount || (Number(form.baseAmount || 0) + Number(form.taxAmount || 0))),
       minAdsRequired: Number(form.dailyAdsRequired || 0),
       dailyAdsRequired: Number(form.dailyAdsRequired || 0),
+      earningPerAdvertisement: Number(form.earningPerAdvertisement || 0),
       dailyWorkMinutes: Number(form.dailyWorkMinutes || 0),
-      monthlyGenerationAmount: Number(form.monthlyGenerationAmount || 0),
       dailyDebitAmount: Number(form.dailyDebitAmount || 0),
       freeBannerCount: Number(form.freeBannerCount || 0),
       status: form.status
@@ -704,8 +705,8 @@ function PackagesPage({ packages, onRefresh }) {
       taxAmount: pkg.taxAmount || '',
       finalAmount: pkg.finalAmount || '',
       dailyAdsRequired: pkg.dailyAdsRequired || pkg.minAdsRequired || '',
+      earningPerAdvertisement: pkg.earningPerAdvertisement || perAdValue(pkg) || '',
       dailyWorkMinutes: pkg.dailyWorkMinutes || '',
-      monthlyGenerationAmount: pkg.monthlyGenerationAmount || '',
       dailyDebitAmount: pkg.dailyDebitAmount || '',
       freeBannerCount: pkg.freeBannerCount ?? '',
       status: pkg.status || 'active'
@@ -717,14 +718,14 @@ function PackagesPage({ packages, onRefresh }) {
       <div className="two-col">
         <Panel title="Packages" icon={Boxes}>
           <DataTable
-            columns={['Name', 'Base', 'Tax', 'Final', 'Daily Policy', 'Monthly', 'Status', 'Action']}
+            columns={['Plan', 'Amount', 'Payable', 'Total Ads', 'Per Ad', 'Daily Earning', 'Status', 'Action']}
             rows={packages.map((pkg) => [
               pkg.name,
               money(pkg.baseAmount),
-              money(pkg.taxAmount),
               money(pkg.finalAmount),
-              `${dailyAds(pkg)} ads / ${pkg.dailyWorkMinutes || 0} min / debit ${money(pkg.dailyDebitAmount)}`,
-              `${money(pkg.monthlyGenerationAmount)} · ${money(perAdValue(pkg))}/ad`,
+              `${dailyAds(pkg)} ads`,
+              money(perAdValue(pkg)),
+              money(dailyIncome(pkg)),
               <Badge tone={pkg.status === 'active' ? 'green' : 'gold'}>{pkg.status}</Badge>,
               <div className="row-actions">
                 <button className="mini" onClick={() => editPackage(pkg)}>Edit</button>
@@ -741,9 +742,9 @@ function PackagesPage({ packages, onRefresh }) {
             <input required type="number" placeholder="Base amount" value={form.baseAmount} onChange={(e) => setForm({ ...form, baseAmount: e.target.value })} />
             <input type="number" placeholder="GST tax amount" value={form.taxAmount} onChange={(e) => setForm({ ...form, taxAmount: e.target.value })} />
             <input type="number" placeholder="Final amount (auto if blank)" value={form.finalAmount} onChange={(e) => setForm({ ...form, finalAmount: e.target.value })} />
-            <input required type="number" min="0" placeholder="Daily ads required" value={form.dailyAdsRequired} onChange={(e) => setForm({ ...form, dailyAdsRequired: e.target.value })} />
+            <input required type="number" min="0" placeholder="Total advertisements" value={form.dailyAdsRequired} onChange={(e) => setForm({ ...form, dailyAdsRequired: e.target.value })} />
+            <input required type="number" min="0" step="0.01" placeholder="Earning per advertisement" value={form.earningPerAdvertisement} onChange={(e) => setForm({ ...form, earningPerAdvertisement: e.target.value })} />
             <input required type="number" min="0" placeholder="Daily work minutes" value={form.dailyWorkMinutes} onChange={(e) => setForm({ ...form, dailyWorkMinutes: e.target.value })} />
-            <input required type="number" min="0" placeholder="Estimated monthly earnings" value={form.monthlyGenerationAmount} onChange={(e) => setForm({ ...form, monthlyGenerationAmount: e.target.value })} />
             <input required type="number" min="0" step="0.01" placeholder="Daily debit amount" value={form.dailyDebitAmount} onChange={(e) => setForm({ ...form, dailyDebitAmount: e.target.value })} />
             <input type="number" min="0" placeholder="Free banner count" value={form.freeBannerCount} onChange={(e) => setForm({ ...form, freeBannerCount: e.target.value })} />
             <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option></select>
@@ -755,13 +756,13 @@ function PackagesPage({ packages, onRefresh }) {
       <AdminPlanSummary />
       <Panel title="Daily Advertisement Income Plan" icon={BadgeIndianRupee}>
         <DataTable
-          columns={['Plan', 'Daily Ads', 'Daily Income', 'Per Ad', 'Monthly', 'Debit']}
+          columns={['Plan', 'Total Ads', 'Per Ad Earning', 'Daily Earning', 'Monthly Estimate', 'Debit']}
           rows={packages.map((pkg) => [
             pkg.name,
-            `${dailyAds(pkg)} ads / ${pkg.dailyWorkMinutes || 0} min`,
-            money(dailyIncome(pkg)),
+            `${dailyAds(pkg)} ads`,
             money(perAdValue(pkg)),
-            money(pkg.monthlyGenerationAmount),
+            money(dailyIncome(pkg)),
+            money(dailyIncome(pkg) * 30),
             money(pkg.dailyDebitAmount)
           ])}
           empty="No plans configured."

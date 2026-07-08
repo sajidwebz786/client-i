@@ -156,9 +156,9 @@ function getTaskProgressSummary(userId, tasks = [], targetCount = tasks.length) 
 }
 
 const demoPackages = [
-  { id: 'pkg-1', name: '₹999 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
-  { id: 'pkg-2', name: '₹1,999 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 60, monthlyGenerationAmount: 600, dailyDebitAmount: 20, freeBannerCount: 2 },
-  { id: 'pkg-3', name: '₹2,999 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 20, dailyAdsRequired: 20, dailyWorkMinutes: 120, monthlyGenerationAmount: 900, dailyDebitAmount: 30, freeBannerCount: 3 }
+  { id: 'pkg-1', name: '₹999 Plan', baseAmount: 999, taxAmount: 125, finalAmount: 1124, minAdsRequired: 20, dailyAdsRequired: 20, earningPerAdvertisement: 0.5, dailyWorkMinutes: 30, monthlyGenerationAmount: 300, dailyDebitAmount: 10, freeBannerCount: 1 },
+  { id: 'pkg-2', name: '₹1,999 Plan', baseAmount: 1999, taxAmount: 125, finalAmount: 2124, minAdsRequired: 20, dailyAdsRequired: 20, earningPerAdvertisement: 1, dailyWorkMinutes: 60, monthlyGenerationAmount: 600, dailyDebitAmount: 20, freeBannerCount: 2 },
+  { id: 'pkg-3', name: '₹2,999 Plan', baseAmount: 2999, taxAmount: 125, finalAmount: 3124, minAdsRequired: 20, dailyAdsRequired: 20, earningPerAdvertisement: 1.5, dailyWorkMinutes: 120, monthlyGenerationAmount: 900, dailyDebitAmount: 30, freeBannerCount: 3 }
 ];
 
 const demoTasks = [
@@ -261,6 +261,7 @@ function dailyTargetForUserTasks(user, tasks = [], packages = []) {
 }
 
 function dailyIncome(pkg) {
+  if (pkg?.earningPerAdvertisement) return dailyAds(pkg) * Number(pkg.earningPerAdvertisement);
   return Number(pkg.monthlyGenerationAmount || 0) / 30;
 }
 
