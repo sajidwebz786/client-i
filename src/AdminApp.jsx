@@ -972,8 +972,9 @@ function WithdrawalsPage({ withdrawals, onRefresh }) {
           </div>,
           <div className="row-actions">
             <button className="mini approve" onClick={() => decide(item.id, 'approve')} disabled={item.status !== 'pending'}>Approve</button>
-            <button className="mini" onClick={() => decide(item.id, 'paid')} disabled={item.status !== 'approved'}>Paid</button>
-            <button className="mini reject" onClick={() => decide(item.id, 'reject')} disabled={!['pending', 'approved'].includes(item.status)}>Reject</button>
+            <button className="mini" onClick={() => decide(item.id, 'processing')} disabled={item.status !== 'approved'}>Processing</button>
+            <button className="mini" onClick={() => decide(item.id, 'paid')} disabled={item.status !== 'processing'}>Paid</button>
+            <button className="mini reject" onClick={() => decide(item.id, 'reject')} disabled={!['pending', 'approved', 'processing'].includes(item.status)}>Reject</button>
           </div>
         ])}
         empty="No withdrawal requests."
