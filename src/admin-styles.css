@@ -1079,3 +1079,24 @@ thead th,
     width: 100%;
   }
 }
+.twenty-task-grid {
+  max-height: 520px;
+  overflow-y: auto;
+  margin: 14px 0;
+  display: grid;
+  gap: 8px;
+}
+
+.twenty-task-row {
+  display: grid;
+  grid-template-columns: 34px 1fr 1.5fr 90px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+@media (max-width: 760px) {
+  .twenty-task-row { grid-template-columns: 28px 1fr; }
+}

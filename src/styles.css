@@ -1518,6 +1518,41 @@ code {
   border-bottom: 0;
 }
 
+.withdraw-history-scroll {
+  max-height: 540px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-color: #f97316 #fff3df;
+}
+
+.withdraw-search {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.plan-switcher button.inactive-plan {
+  opacity: .68;
+  border-style: dashed;
+  filter: saturate(.65);
+}
+
+.plan-switcher button.purchased {
+  box-shadow: 0 0 0 2px rgba(15,118,110,.16), 0 10px 24px rgba(15,118,110,.12);
+}
+
+.activate-plan-message,
+.subscription-dates {
+  margin: 10px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fff3df, #fff);
+  border: 1px solid #fed7aa;
+}
+
+.clean-hero {
+  background: radial-gradient(circle at 85% 15%, rgba(249,115,22,.32), transparent 32%), linear-gradient(135deg, #172033, #26334a);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

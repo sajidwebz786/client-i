@@ -46,8 +46,6 @@ import {
 import './styles.css';
 import logo from './images/logo.png';
 import paymentQrImage from './images/qrcode.jpeg';
-import heroFallbackImage from './images/mlm-main.jpg';
-import heroAdsPlatformImage from './images/hero-ads-platform.png';
 import offerPic from './images/offer-pic.jpeg';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -592,7 +590,7 @@ function App() {
         {active === 'packages' && <PackagesPage packages={packages.data} setAuthOpen={setAuthOpen} isLoggedIn={isLoggedIn} setPaymentPackage={setPaymentPackage} />}
         {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} tasks={tasks.data} />}
         {active === 'profile' && <ProfilePage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} onUserUpdate={updateStoredUser} />}
-        {active === 'tasks' && <TasksPage tasks={tasks.data} packages={packages.data} user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} />}
+        {active === 'tasks' && <TasksPage tasks={tasks.data} packages={packages.data} user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} />}
         {active === 'wallet' && <WalletPage wallet={wallet.data} withdrawals={withdrawals.data} payments={payments.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
         {active === 'support' && <SupportPage isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
       </main>
@@ -645,37 +643,10 @@ function App() {
   );
 }
 
-function HomePage({ setActive, setAuthOpen, banners = [] }) {
-  const heroSlides = banners.length
-    ? banners
-    : [
-        { id: 'fallback-hero-main', title: 'Luminate Ads', imageUrl: heroFallbackImage, local: true },
-        { id: 'fallback-hero-ads', title: 'Daily advertising tasks', imageUrl: heroAdsPlatformImage, local: true }
-      ];
-  const [slideIndex, setSlideIndex] = useState(0);
-
-  useEffect(() => {
-    if (heroSlides.length <= 1) return undefined;
-    const timer = window.setInterval(() => {
-      setSlideIndex((current) => (current + 1) % heroSlides.length);
-    }, 4500);
-    return () => window.clearInterval(timer);
-  }, [heroSlides.length]);
-
+function HomePage({ setActive, setAuthOpen }) {
   return (
     <>
-      <section className="hero slider-hero">
-        {heroSlides.map((slide, index) => {
-          const slideImage = slide.local ? slide.imageUrl : absoluteAssetUrl(slide.imageUrl);
-          return slideImage ? (
-            <img
-              className={index === slideIndex ? 'hero-slide-image active' : 'hero-slide-image'}
-              src={slideImage}
-              alt={slide.title || 'Luminate Ads'}
-              key={slide.id || slide.imageUrl || index}
-            />
-          ) : null;
-        })}
+      <section className="hero clean-hero">
         <div className="hero-content reveal">
           <span className="eyebrow"><ShieldCheck size={16} /> Smart ads brighter results</span>
           <h1>Luminate Ads</h1>
@@ -685,21 +656,7 @@ function HomePage({ setActive, setAuthOpen, banners = [] }) {
             <button className="glass" onClick={() => setActive('packages')}>See Plans</button>
           </div>
         </div>
-        {heroSlides.length > 1 && (
-          <div className="hero-dots" aria-label="Home banner slides">
-            {heroSlides.map((slide, index) => (
-              <button
-                key={slide.id || slide.imageUrl || index}
-                className={index === slideIndex ? 'active' : ''}
-                aria-label={`Show slide ${index + 1}`}
-                onClick={() => setSlideIndex(index)}
-              />
-            ))}
-          </div>
-        )}
       </section>
-
-      <BannerScroller banners={banners} />
 
       <section className="metrics band">
         {[
@@ -1291,23 +1248,20 @@ function HierarchyTree({ node, root = false }) {
   );
 }
 
-function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
+function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }) {
   const userPlanId = user?.packageId || user?.package?.id || '';
   const sortedPackages = sortPackagesByAmount(packages);
   const sortedTasks = sortTasksByPlan(tasks, sortedPackages);
-  const taskPlanIds = new Set(sortedTasks.map(taskPackageId).filter(Boolean));
-  if (userPlanId) taskPlanIds.add(userPlanId);
-  const visiblePlans = sortedPackages.filter((pkg) => taskPlanIds.has(pkg.id));
-  const isFreeJoiner = !userPlanId && !visiblePlans.length;
-  const taskPlans = isFreeJoiner ? [freeTaskPlan] : (visiblePlans.length ? visiblePlans : sortedPackages.slice(0, 3));
-  const firstPlanId = taskPlans[0]?.id || '';
-  const [selectedPlan, setSelectedPlan] = useState(userPlanId || firstPlanId);
+  const isFreeJoiner = !userPlanId;
+  const taskPlans = isFreeJoiner ? [freeTaskPlan, ...sortedPackages.slice(0, 3)] : sortedPackages.slice(0, 3);
+  const firstPlanId = userPlanId || freeTaskPlan.id;
+  const [selectedPlan, setSelectedPlan] = useState(firstPlanId);
   const [progressVersion, setProgressVersion] = useState(0);
   const [activeTaskId, setActiveTaskId] = useState('');
   const [watchLockMessage, setWatchLockMessage] = useState('');
   useEffect(() => {
-    if (firstPlanId && !visiblePlans.some((pkg) => pkg.id === selectedPlan)) setSelectedPlan(firstPlanId);
-  }, [firstPlanId, selectedPlan, visiblePlans]);
+    if (firstPlanId && !taskPlans.some((pkg) => pkg.id === selectedPlan)) setSelectedPlan(firstPlanId);
+  }, [firstPlanId, selectedPlan, taskPlans]);
   useEffect(() => {
     function refreshProgress() {
       setProgressVersion((value) => value + 1);
@@ -1335,13 +1289,13 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
     if (!rowsByPlan.has(planId)) rowsByPlan.set(planId, []);
     rowsByPlan.get(planId).push(row);
   }
-  const priorityPlanWithPending = taskPlans.find((pkg) => (rowsByPlan.get(pkg.id) || []).some((row) => Number(row.progress.percent || 0) < 100));
-  const effectivePlanId = priorityPlanWithPending?.id || selectedPlan || firstPlanId;
+  const effectivePlanId = selectedPlan || firstPlanId;
   const activePlan = taskPlans.find((pkg) => pkg.id === effectivePlanId) || taskPlans[0];
-  const planLabels = ['A Plan', 'B Plan', 'C Plan'];
+  const planLabels = ['Free 10 Ads', 'A Plan', 'B Plan', 'C Plan'];
+  const activePlanPurchased = activePlan?.id === freeTaskPlan.id ? isFreeJoiner : activePlan?.id === userPlanId;
   const effectiveRows = progressSummary.rows.filter((row) => {
     const planId = taskPackageId(row.task);
-    return planId ? planId === effectivePlanId : true;
+    return effectivePlanId === freeTaskPlan.id ? !planId : planId === effectivePlanId;
   });
   const activePlanTarget = activePlan ? dailyAds(activePlan) : effectiveRows.length;
   const activePlanCompleted = effectiveRows.filter((row) => Number(row.progress.percent || 0) >= 100).length;
@@ -1358,13 +1312,15 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       <h2>Monthly calendar-based ad tasks.</h2>
       <div className="plan-switcher" aria-label="Task plan selector">
         {taskPlans.map((pkg, index) => (
-          <button key={pkg.id} className={activePlan?.id === pkg.id ? 'active' : ''} onClick={() => setSelectedPlan(pkg.id)}>
+          <button key={pkg.id} className={`${activePlan?.id === pkg.id ? 'active' : ''} ${(pkg.id === freeTaskPlan.id ? isFreeJoiner : pkg.id === userPlanId) ? 'purchased' : 'inactive-plan'}`} onClick={() => setSelectedPlan(pkg.id)}>
             <strong>{planLabels[index] || pkg.name}</strong>
             <span>{pkg.name}</span>
           </button>
         ))}
       </div>
       {activePlan && <p className="muted task-plan-note">{activePlan.name}</p>}
+      <p className="subscription-dates"><strong>Subscription:</strong> {user?.subscription?.planStartDate || '-'} to {user?.subscription?.planExpiryDate || '-'} · {user?.subscription?.status || 'free'}</p>
+      {!activePlanPurchased && <div className="activate-plan-message">This plan is inactive. <button className="mini-link" onClick={() => setActive('packages')}>Purchase / Activate</button></div>}
       <div className="daily-progress-panel">
         <div>
           <strong>{activePlanCompleted}/{activePlanTarget}</strong>
@@ -1401,17 +1357,17 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen }) {
       </div>
       <p className="muted task-policy">
         {isFreeJoiner
-          ? 'Complete the free daily ad count to receive free ad earnings. Package debit rules start only after package activation.'
+          ? `Complete all 10 free ads. Payout is available after 30 days from joining${user?.subscription?.freePayoutEligibleAt ? ` (${user.subscription.freePayoutEligibleAt})` : ''}; the direct referrer benefit follows the same payout timing.`
           : 'Complete the full daily ad count for your selected plan. Missed dates create an automatic daily debit as per the plan policy.'}
       </p>
-      {currentTask && (
+      {activePlanPurchased && currentTask && (
         <div className="task-sequence-panel">
           <strong>Current task {currentTaskNumber} of {activePlanTarget}</strong>
           <span>Complete this task to continue.</span>
         </div>
       )}
       <div className="task-list">
-        {currentTask ? (
+        {!activePlanPurchased ? <p className="muted">Tasks will become available after this plan is purchased and approved.</p> : currentTask ? (
           <TaskCard
             task={currentTask}
             userId={user?.id}
@@ -1748,11 +1704,14 @@ function WithdrawalStatus({ item }) {
 function WalletPage({ wallet, withdrawals, payments, isLoggedIn, setAuthOpen, setNotice }) {
   const [bank, setBank] = useState({ bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '', upiId: '' });
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawSearch, setWithdrawSearch] = useState('');
   if (!isLoggedIn) return <Gate title="Your rewards stay organized." text="Login to see your balance, save bank or UPI details, and request money when you are ready." action={setAuthOpen} />;
   const withdrawalHistory = (withdrawals?.withdrawals || []).length
     ? withdrawals.withdrawals
     : (wallet.transactions || []).filter((tx) => tx.transactionType === 'withdrawal_request' || tx.category === 'withdrawal');
   const paymentHistory = payments?.payments || [];
+  const filteredWithdrawals = withdrawalHistory.filter((tx) => `${tx.id || tx.transactionId || ''} ${tx.statusLabel || tx.status || ''} ${tx.transactionReferenceNumber || tx.transactionNumber || ''} ${tx.remarks || tx.adminRemarks || ''}`.toLowerCase().includes(withdrawSearch.toLowerCase()));
+  const idTransactions = (wallet.transactions || []).filter((tx) => tx.transactionId || tx.id);
 
   async function saveBank() {
     try {
@@ -1784,7 +1743,9 @@ function WalletPage({ wallet, withdrawals, payments, isLoggedIn, setAuthOpen, se
         </article>
         <article className="panel withdraw-history-panel">
           <h3>Withdraw History</h3>
-          {withdrawalHistory.length ? withdrawalHistory.map((tx) => (
+          <input className="withdraw-search" value={withdrawSearch} onChange={(e) => setWithdrawSearch(e.target.value)} placeholder="Search ID, status, reference or remarks" />
+          <div className="withdraw-history-scroll">
+          {filteredWithdrawals.length ? filteredWithdrawals.map((tx) => (
             <div className="withdrawal-history-card" key={tx.id || tx.transactionId}>
               <div className="transaction-row">
                 <span>ID</span>
@@ -1824,7 +1785,8 @@ function WalletPage({ wallet, withdrawals, payments, isLoggedIn, setAuthOpen, se
                 </div>
               )}
             </div>
-          )) : <p className="muted">No withdrawal requests yet.</p>}
+          )) : <p className="muted">No matching withdrawal requests.</p>}
+          </div>
         </article>
         <article className="panel">
           <h3>Bank Details</h3>
@@ -1848,7 +1810,7 @@ function WalletPage({ wallet, withdrawals, payments, isLoggedIn, setAuthOpen, se
       </div>
       <div className="panel recent-transactions-panel">
         <h3>Recent Transactions</h3>
-        {(wallet.transactions || []).length ? wallet.transactions.map((tx) => (
+        {idTransactions.length ? idTransactions.map((tx) => (
           <div className="withdrawal-history-card" key={tx.transactionId || tx.id}>
             <div className="transaction-row">
               <span>Transaction ID</span>

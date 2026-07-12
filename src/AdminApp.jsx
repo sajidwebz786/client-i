@@ -832,6 +832,18 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
   const emptyTask = { title: '', platform: 'youtube', taskUrl: '', description: '', rewardAmount: '0.5', packageId: '', status: 'active' };
   const [task, setTask] = useState(emptyTask);
   const [editingTaskId, setEditingTaskId] = useState('');
+  const [todayPackageId, setTodayPackageId] = useState('');
+  const [todayTasks, setTodayTasks] = useState(() => Array.from({ length: 20 }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', rewardAmount: '0.5' })));
+
+  async function postTodayTwenty() {
+    if (todayTasks.some((item) => !item.taskUrl.trim())) {
+      window.alert('Please enter all 20 task URLs before posting.');
+      return;
+    }
+    await api.post('/tasks/admin/post-today-20', { packageId: todayPackageId || null, tasks: todayTasks.map((item) => ({ ...item, rewardAmount: Number(item.rewardAmount || 0) })) });
+    setTodayTasks(Array.from({ length: 20 }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', rewardAmount: '0.5' })));
+    onRefresh();
+  }
 
   async function createTask(event) {
     event.preventDefault();
@@ -883,6 +895,23 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
 
   return (
     <div className="two-col">
+      <Panel title="Today's 20 Tasks" icon={ClipboardCheck}>
+        <select value={todayPackageId} onChange={(e) => setTodayPackageId(e.target.value)}>
+          <option value="">Free 10 Ads / All users</option>
+          {packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
+        </select>
+        <div className="twenty-task-grid">
+          {todayTasks.map((item, index) => (
+            <div className="twenty-task-row" key={index}>
+              <strong>{index + 1}</strong>
+              <input value={item.title} onChange={(e) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, title: e.target.value } : row))} placeholder="Task title" />
+              <input value={item.taskUrl} onChange={(e) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, taskUrl: e.target.value } : row))} placeholder="Video / advertisement URL" />
+              <input type="number" step="0.01" value={item.rewardAmount} onChange={(e) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, rewardAmount: e.target.value } : row))} aria-label={`Task ${index + 1} reward`} />
+            </div>
+          ))}
+        </div>
+        <button className="primary" onClick={postTodayTwenty}>Post today's 20 tasks</button>
+      </Panel>
       <Panel title="Task Library" icon={ClipboardCheck}>
         {tasks.length ? (
           <div className="panel-actions">
