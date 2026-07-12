@@ -832,16 +832,18 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
   const emptyTask = { title: '', platform: 'youtube', taskUrl: '', description: '', rewardAmount: '0.5', packageId: '', status: 'active' };
   const [task, setTask] = useState(emptyTask);
   const [editingTaskId, setEditingTaskId] = useState('');
-  const [todayPackageId, setTodayPackageId] = useState('');
-  const [todayTasks, setTodayTasks] = useState(() => Array.from({ length: 20 }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', rewardAmount: '0.5' })));
+  const [showTwentyTaskCreator, setShowTwentyTaskCreator] = useState(false);
+  const newTodayRows = () => Array.from({ length: 20 }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', description: 'Watch the complete advertisement to finish this task.', rewardAmount: '0.5', packageId: '', status: 'active' }));
+  const [todayTasks, setTodayTasks] = useState(newTodayRows);
 
   async function postTodayTwenty() {
     if (todayTasks.some((item) => !item.taskUrl.trim())) {
       window.alert('Please enter all 20 task URLs before posting.');
       return;
     }
-    await api.post('/tasks/admin/post-today-20', { packageId: todayPackageId || null, tasks: todayTasks.map((item) => ({ ...item, rewardAmount: Number(item.rewardAmount || 0) })) });
-    setTodayTasks(Array.from({ length: 20 }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', rewardAmount: '0.5' })));
+    await api.post('/tasks/admin/post-today-20', { tasks: todayTasks.map((item) => ({ ...item, rewardAmount: Number(item.rewardAmount || 0) })) });
+    setTodayTasks(newTodayRows());
+    setShowTwentyTaskCreator(false);
     onRefresh();
   }
 
@@ -894,24 +896,12 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
   }
 
   return (
+    <>
+    <div className="task-creation-launch">
+      <div><strong>Today's Task Creation</strong><span>{new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
+      <button className="primary" onClick={() => setShowTwentyTaskCreator(true)}>Start Task Creation</button>
+    </div>
     <div className="two-col">
-      <Panel title="Today's 20 Tasks" icon={ClipboardCheck}>
-        <select value={todayPackageId} onChange={(e) => setTodayPackageId(e.target.value)}>
-          <option value="">Free 10 Ads / All users</option>
-          {packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
-        </select>
-        <div className="twenty-task-grid">
-          {todayTasks.map((item, index) => (
-            <div className="twenty-task-row" key={index}>
-              <strong>{index + 1}</strong>
-              <input value={item.title} onChange={(e) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, title: e.target.value } : row))} placeholder="Task title" />
-              <input value={item.taskUrl} onChange={(e) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, taskUrl: e.target.value } : row))} placeholder="Video / advertisement URL" />
-              <input type="number" step="0.01" value={item.rewardAmount} onChange={(e) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, rewardAmount: e.target.value } : row))} aria-label={`Task ${index + 1} reward`} />
-            </div>
-          ))}
-        </div>
-        <button className="primary" onClick={postTodayTwenty}>Post today's 20 tasks</button>
-      </Panel>
       <Panel title="Task Library" icon={ClipboardCheck}>
         {tasks.length ? (
           <div className="panel-actions">
@@ -971,6 +961,23 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
         </form>
       </Panel>
     </div>
+    {showTwentyTaskCreator && (
+      <div className="task-creator-backdrop" role="dialog" aria-modal="true">
+        <div className="task-creator-modal">
+          <div className="task-creator-head"><div><h2>Create Today's 20 Tasks</h2><p>{new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p></div><button className="ghost" onClick={() => setShowTwentyTaskCreator(false)}>Close</button></div>
+          <div className="task-creator-table-wrap">
+            <table className="task-creator-table"><thead><tr><th>#</th><th>Title</th><th>Platform</th><th>Task URL</th><th>Instructions</th><th>Reward</th><th>Package</th><th>Status</th></tr></thead><tbody>
+            {todayTasks.map((item, index) => {
+              const update = (field, value) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
+              return <tr key={index}><td>{index + 1}</td><td><input value={item.title} onChange={(e) => update('title', e.target.value)} /></td><td><select value={item.platform} onChange={(e) => update('platform', e.target.value)}>{['youtube','instagram','facebook','google','website','whatsapp','banner','local','other'].map((value) => <option key={value}>{value}</option>)}</select></td><td><input value={item.taskUrl} onChange={(e) => update('taskUrl', e.target.value)} placeholder="URL" /></td><td><textarea value={item.description} onChange={(e) => update('description', e.target.value)} /></td><td><input type="number" step="0.01" value={item.rewardAmount} onChange={(e) => update('rewardAmount', e.target.value)} /></td><td><select value={item.packageId} onChange={(e) => update('packageId', e.target.value)}><option value="">Free / All</option>{packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}</select></td><td><select value={item.status} onChange={(e) => update('status', e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select></td></tr>;
+            })}
+            </tbody></table>
+          </div>
+          <div className="task-creator-actions"><button className="ghost" onClick={() => setShowTwentyTaskCreator(false)}>Cancel</button><button className="primary" onClick={postTodayTwenty}>Post today's 20 tasks</button></div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -1001,8 +1008,8 @@ function WithdrawalsPage({ withdrawals, onRefresh }) {
           </div>,
           <div className="row-actions">
             <button className="mini approve" onClick={() => decide(item.id, 'approve')} disabled={item.status !== 'pending'}>Approve</button>
-            <button className="mini" onClick={() => decide(item.id, 'processing')} disabled={item.status !== 'approved'}>Processing</button>
-            <button className="mini" onClick={() => decide(item.id, 'paid')} disabled={item.status !== 'processing'}>Paid</button>
+            <button className="mini processing-action" onClick={() => decide(item.id, 'processing')} disabled={item.status !== 'approved'}>Processing</button>
+            <button className="mini paid-action" onClick={() => decide(item.id, 'paid')} disabled={item.status !== 'processing'}>Paid</button>
             <button className="mini reject" onClick={() => decide(item.id, 'reject')} disabled={!['pending', 'approved', 'processing'].includes(item.status)}>Reject</button>
           </div>
         ])}

@@ -1550,7 +1550,10 @@ code {
 }
 
 .clean-hero {
-  background: radial-gradient(circle at 85% 15%, rgba(249,115,22,.32), transparent 32%), linear-gradient(135deg, #172033, #26334a);
+  background-image: linear-gradient(90deg, rgba(8,20,39,.96) 0%, rgba(8,20,39,.86) 48%, rgba(42,18,10,.56) 100%), var(--hero-background);
+  background-size: cover;
+  background-position: center;
+  background-color: #081427;
 }
 
 .badge {
@@ -2649,3 +2652,7 @@ select:focus {
     padding: 0;
   }
 }
+.badge.green,.timeline-chip.green { background:#16a34a !important; color:#fff !important; }
+.badge.gold,.timeline-chip.gold { background:#f59e0b !important; color:#111827 !important; }
+.badge.blue,.timeline-chip.blue { background:#2563eb !important; color:#fff !important; }
+.badge.coral,.timeline-chip.coral { background:#dc2626 !important; color:#fff !important; }

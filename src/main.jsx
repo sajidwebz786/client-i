@@ -46,7 +46,7 @@ import {
 import './styles.css';
 import logo from './images/logo.png';
 import paymentQrImage from './images/qrcode.jpeg';
-import offerPic from './images/offer-pic.jpeg';
+import heroAdsPlatformImage from './images/hero-ads-platform.png';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const BRAND_NAME = 'Luminate Ads';
@@ -387,19 +387,6 @@ function App() {
   const [notificationCount, setNotificationCount] = useState(0);
   const isLoggedIn = Boolean(token);
 
-  const [showOfferModal, setShowOfferModal] = useState(active === 'home' || active === 'portal');
-
-  useEffect(() => {
-    if (active === 'home' || active === 'portal') {
-      setShowOfferModal(true);
-    } else {
-      setShowOfferModal(false);
-    }
-  }, [active]);
-
-  function closeOfferModal() {
-    setShowOfferModal(false);
-  }
   const packages = useApiData('/packages', demoPackages, (data) => data.packages || demoPackages);
   const tasks = useApiData(isLoggedIn ? '/tasks' : null, demoTasks, (data) => data.tasks || demoTasks);
   const wallet = useApiData(isLoggedIn ? '/wallet' : null, { wallet: { totalEarned: 0, availableBalance: 0, withdrawnAmount: 0 }, transactions: [] }, (data) => data);
@@ -636,17 +623,18 @@ function App() {
       </footer>
 
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} onSession={saveSession} packages={packages.data} />}
-      {paymentPackage && <PaymentModal pkg={paymentPackage} onClose={() => setPaymentPackage(null)} setNotice={setNotice} />}
+      {paymentPackage && <PaymentModal pkg={paymentPackage} qrImageUrl={publicHome.data.banners?.find((item) => /payment|qr/i.test(`${item.title || ''} ${item.placement || ''}`))?.imageUrl} onClose={() => setPaymentPackage(null)} setNotice={setNotice} />}
       {notificationsOpen && <NotificationModal notifications={notifications} onClose={() => setNotificationsOpen(false)} />}
-      {(active === 'home' || active === 'portal') && showOfferModal && <OfferModal onClose={closeOfferModal} />}
     </div>
   );
 }
 
-function HomePage({ setActive, setAuthOpen }) {
+function HomePage({ setActive, setAuthOpen, banners = [] }) {
+  const cloudHero = banners.find((item) => ['home', 'dashboard'].includes(item.placement) && !/boom|offer|payment|qr/i.test(`${item.title || ''} ${item.imageUrl || ''}`))?.imageUrl;
+  const heroBackground = cloudHero ? absoluteAssetUrl(cloudHero) : heroAdsPlatformImage;
   return (
     <>
-      <section className="hero clean-hero">
+      <section className="hero clean-hero" style={{ '--hero-background': `url("${heroBackground}")` }}>
         <div className="hero-content reveal">
           <span className="eyebrow"><ShieldCheck size={16} /> Smart ads brighter results</span>
           <h1>Luminate Ads</h1>
@@ -1253,7 +1241,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }
   const sortedPackages = sortPackagesByAmount(packages);
   const sortedTasks = sortTasksByPlan(tasks, sortedPackages);
   const isFreeJoiner = !userPlanId;
-  const taskPlans = isFreeJoiner ? [freeTaskPlan, ...sortedPackages.slice(0, 3)] : sortedPackages.slice(0, 3);
+  const taskPlans = [freeTaskPlan, ...sortedPackages.slice(0, 3)];
   const firstPlanId = userPlanId || freeTaskPlan.id;
   const [selectedPlan, setSelectedPlan] = useState(firstPlanId);
   const [progressVersion, setProgressVersion] = useState(0);
@@ -1292,7 +1280,8 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }
   const effectivePlanId = selectedPlan || firstPlanId;
   const activePlan = taskPlans.find((pkg) => pkg.id === effectivePlanId) || taskPlans[0];
   const planLabels = ['Free 10 Ads', 'A Plan', 'B Plan', 'C Plan'];
-  const activePlanPurchased = activePlan?.id === freeTaskPlan.id ? isFreeJoiner : activePlan?.id === userPlanId;
+  const freePlanAvailable = !user?.createdAt || new Date(user.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000 >= Date.now();
+  const activePlanPurchased = activePlan?.id === freeTaskPlan.id ? freePlanAvailable : activePlan?.id === userPlanId;
   const effectiveRows = progressSummary.rows.filter((row) => {
     const planId = taskPackageId(row.task);
     return effectivePlanId === freeTaskPlan.id ? !planId : planId === effectivePlanId;
@@ -1312,7 +1301,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }
       <h2>Monthly calendar-based ad tasks.</h2>
       <div className="plan-switcher" aria-label="Task plan selector">
         {taskPlans.map((pkg, index) => (
-          <button key={pkg.id} className={`${activePlan?.id === pkg.id ? 'active' : ''} ${(pkg.id === freeTaskPlan.id ? isFreeJoiner : pkg.id === userPlanId) ? 'purchased' : 'inactive-plan'}`} onClick={() => setSelectedPlan(pkg.id)}>
+          <button key={pkg.id} className={`${activePlan?.id === pkg.id ? 'active' : ''} ${(pkg.id === freeTaskPlan.id ? freePlanAvailable : pkg.id === userPlanId) ? 'purchased' : 'inactive-plan'}`} onClick={() => setSelectedPlan(pkg.id)}>
             <strong>{planLabels[index] || pkg.name}</strong>
             <span>{pkg.name}</span>
           </button>
@@ -1921,14 +1910,14 @@ function SupportPage({ isLoggedIn, setAuthOpen, setNotice }) {
   );
 }
 
-function PaymentModal({ pkg, onClose, setNotice }) {
+function PaymentModal({ pkg, qrImageUrl, onClose, setNotice }) {
   const [utrNumber, setUtrNumber] = useState('');
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const baseAmount = packageBaseAmount(pkg);
   const taxAmount = packageTax(pkg);
   const finalAmount = packageFinalAmount(pkg);
-  const qrSrc = getPaymentQrSrc(finalAmount);
+  const qrSrc = qrImageUrl ? absoluteAssetUrl(qrImageUrl) : getPaymentQrSrc(finalAmount);
 
   async function submit(event) {
     event.preventDefault();
@@ -2016,20 +2005,6 @@ function Gate({ title, text, action }) {
         <button className="primary" onClick={action}>Login / Register</button>
       </div>
     </section>
-  );
-}
-
-function OfferModal({ onClose }) {
-  return (
-    <div className="overlay offer-modal">
-      <div className="offer-modal-card">
-        <div className="offer-modal-body">
-          <img className="offer-modal-image" src={offerPic} alt="Exclusive offer" />
-          <p>Exclusive Offer on Launch</p>
-          <button className="primary offer-modal-close" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
   );
 }
 
