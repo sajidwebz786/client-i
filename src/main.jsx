@@ -577,7 +577,7 @@ function App() {
         {active === 'packages' && <PackagesPage packages={packages.data} setAuthOpen={setAuthOpen} isLoggedIn={isLoggedIn} setPaymentPackage={setPaymentPackage} />}
         {active === 'portal' && <Dashboard user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} packages={packages.data} wallet={wallet.data} tasks={tasks.data} />}
         {active === 'profile' && <ProfilePage user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} onUserUpdate={updateStoredUser} />}
-        {active === 'tasks' && <TasksPage tasks={tasks.data} packages={packages.data} user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setActive={setActive} />}
+        {active === 'tasks' && <TasksPage tasks={tasks.data} packages={packages.data} user={user} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setPaymentPackage={setPaymentPackage} />}
         {active === 'wallet' && <WalletPage wallet={wallet.data} withdrawals={withdrawals.data} payments={payments.data} isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
         {active === 'support' && <SupportPage isLoggedIn={isLoggedIn} setAuthOpen={setAuthOpen} setNotice={setNotice} />}
       </main>
@@ -1236,7 +1236,7 @@ function HierarchyTree({ node, root = false }) {
   );
 }
 
-function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }) {
+function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setPaymentPackage }) {
   const userPlanId = user?.packageId || user?.package?.id || '';
   const sortedPackages = sortPackagesByAmount(packages);
   const sortedTasks = sortTasksByPlan(tasks, sortedPackages);
@@ -1281,7 +1281,10 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }
   const activePlan = taskPlans.find((pkg) => pkg.id === effectivePlanId) || taskPlans[0];
   const planLabels = ['Free 10 Ads', 'A Plan', 'B Plan', 'C Plan'];
   const freePlanAvailable = !user?.createdAt || new Date(user.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000 >= Date.now();
-  const activePlanPurchased = activePlan?.id === freeTaskPlan.id ? freePlanAvailable : activePlan?.id === userPlanId;
+  const hasActivePlanData = Array.isArray(user?.subscription?.activePlans);
+  const activePaidPlanIds = new Set((user?.subscription?.activePlans || []).map((plan) => plan.packageId));
+  const legacyActivePlan = !hasActivePlanData && user?.subscription?.status === 'active' && activePlan?.id === userPlanId;
+  const activePlanPurchased = activePlan?.id === freeTaskPlan.id ? freePlanAvailable : (activePaidPlanIds.has(activePlan?.id) || legacyActivePlan);
   const effectiveRows = progressSummary.rows.filter((row) => {
     const planId = taskPackageId(row.task);
     return effectivePlanId === freeTaskPlan.id ? !planId : planId === effectivePlanId;
@@ -1301,7 +1304,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }
       <h2>Monthly calendar-based ad tasks.</h2>
       <div className="plan-switcher" aria-label="Task plan selector">
         {taskPlans.map((pkg, index) => (
-          <button key={pkg.id} className={`${activePlan?.id === pkg.id ? 'active' : ''} ${(pkg.id === freeTaskPlan.id ? freePlanAvailable : pkg.id === userPlanId) ? 'purchased' : 'inactive-plan'}`} onClick={() => setSelectedPlan(pkg.id)}>
+          <button key={pkg.id} className={`${activePlan?.id === pkg.id ? 'active' : ''} ${(pkg.id === freeTaskPlan.id ? freePlanAvailable : (activePaidPlanIds.has(pkg.id) || (!hasActivePlanData && user?.subscription?.status === 'active' && pkg.id === userPlanId))) ? 'purchased' : 'inactive-plan'}`} onClick={() => setSelectedPlan(pkg.id)}>
             <strong>{planLabels[index] || pkg.name}</strong>
             <span>{pkg.name}</span>
           </button>
@@ -1311,7 +1314,13 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }
       {activePlan?.id === firstPlanId && (
         <p className="subscription-dates"><strong>Subscription:</strong> {user?.subscription?.planStartDate || '-'} to {user?.subscription?.planExpiryDate || '-'} · {user?.subscription?.status || 'free'}</p>
       )}
-      {!activePlanPurchased && <div className="activate-plan-message">This plan is inactive. <button className="mini-link" onClick={() => setActive('packages')}>Purchase / Activate</button></div>}
+      {!activePlanPurchased && activePlan && <div className="activate-plan-message">
+        <div>
+          <strong>{activePlan.name}</strong>
+          <span>{money(activePlan.finalAmount || activePlan.baseAmount)} · {dailyAds(activePlan)} daily ads · {money(perAdValue(activePlan))} per ad</span>
+        </div>
+        <button className="mini-link" onClick={() => setPaymentPackage(activePlan)}>Purchase / Activate This Plan</button>
+      </div>}
       {activePlanPurchased && (
         <div className="daily-progress-panel">
           <div>
