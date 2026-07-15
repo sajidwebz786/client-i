@@ -1310,17 +1310,19 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }
       {activePlan && <p className="muted task-plan-note">{activePlan.name}</p>}
       <p className="subscription-dates"><strong>Subscription:</strong> {user?.subscription?.planStartDate || '-'} to {user?.subscription?.planExpiryDate || '-'} · {user?.subscription?.status || 'free'}</p>
       {!activePlanPurchased && <div className="activate-plan-message">This plan is inactive. <button className="mini-link" onClick={() => setActive('packages')}>Purchase / Activate</button></div>}
-      <div className="daily-progress-panel">
-        <div>
-          <strong>{activePlanCompleted}/{activePlanTarget}</strong>
-          <span>tasks completed today</span>
+      {activePlanPurchased && (
+        <div className="daily-progress-panel">
+          <div>
+            <strong>{activePlanCompleted}/{activePlanTarget}</strong>
+            <span>tasks completed today</span>
+          </div>
+          <div>
+            <strong>{activePlanAverage}%</strong>
+            <span>average task progress</span>
+          </div>
+          <p>{activePlanPending ? `${activePlanPending} task${activePlanPending === 1 ? '' : 's'} pending. Continue the remaining tasks to close today’s activity.` : 'All available tasks are completed for today.'}</p>
         </div>
-        <div>
-          <strong>{activePlanAverage}%</strong>
-          <span>average task progress</span>
-        </div>
-        <p>{activePlanPending ? `${activePlanPending} task${activePlanPending === 1 ? '' : 's'} pending. Continue the remaining tasks to close today’s activity.` : 'All available tasks are completed for today.'}</p>
-      </div>
+      )}
       {watchLockMessage && <p className="watch-lock-message">{watchLockMessage}</p>}
       <div className="calendar-shell">
         <div className="calendar-head">
