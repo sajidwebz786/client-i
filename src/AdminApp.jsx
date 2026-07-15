@@ -28,6 +28,7 @@ import {
   Ticket,
   TreePine,
   UploadCloud,
+  UserCheck,
   Users,
   Wallet,
   XCircle
@@ -213,6 +214,7 @@ export default function AdminApp() {
 
   const nav = [
     ['dashboard', 'Dashboard', LayoutDashboard],
+    ['active-users', 'Active Users', UserCheck],
     ['users', 'Users', Users],
     ['hierarchy', 'Hierarchy', TreePine],
     ['packages', 'Packages', Boxes],
@@ -257,6 +259,7 @@ export default function AdminApp() {
         {notice && <div className="toast" onAnimationEnd={() => setNotice('')}>{notice}</div>}
 
         {active === 'dashboard' && <Dashboard data={data} />}
+        {active === 'active-users' && <ActiveUsersPage users={data.users} />}
         {active === 'users' && <UsersPage users={data.users} onRefresh={() => setRefresh((x) => x + 1)} />}
         {active === 'hierarchy' && <HierarchyPage users={data.users} admin={admin} />}
         {active === 'packages' && <PackagesPage packages={data.packages} onRefresh={() => setRefresh((x) => x + 1)} />}
@@ -497,6 +500,127 @@ function DailyDebitRunner() {
         />
       ) : null}
     </Panel>
+  );
+}
+
+function ActiveUsersPage({ users }) {
+  const [search, setSearch] = useState('');
+  const activeUsers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return (users || [])
+      .filter((user) => user.status === 'active')
+      .filter((user) => !query || [
+        user.name,
+        user.email,
+        user.mobile,
+        user.referralCode,
+        user.subscription?.planName,
+        user.package?.name,
+        user.sponsor?.name
+      ].some((value) => String(value || '').toLowerCase().includes(query)));
+  }, [users, search]);
+
+  const totals = useMemo(() => activeUsers.reduce((summary, user) => {
+    const approvedPayments = (user.payments || []).filter((payment) => payment.status === 'approved');
+    const latestPayment = approvedPayments.sort((a, b) => new Date(b.approvedAt || b.createdAt || 0) - new Date(a.approvedAt || a.createdAt || 0))[0];
+    summary.joining += Number(latestPayment?.amount ?? user.subscription?.payableAmount ?? user.subscription?.planAmount ?? 0);
+    summary.balance += Number(user.wallet?.availableBalance ?? user.wallet?.balance ?? 0);
+    summary.earned += Number(user.wallet?.totalEarned || 0);
+    return summary;
+  }, { joining: 0, balance: 0, earned: 0 }), [activeUsers]);
+
+  function formatDate(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  function daysRemaining(value) {
+    if (!value) return '-';
+    const milliseconds = new Date(value).setHours(23, 59, 59, 999) - Date.now();
+    return Math.max(0, Math.ceil(milliseconds / 86400000));
+  }
+
+  const rows = activeUsers.map((user) => {
+    const approvedPayments = (user.payments || [])
+      .filter((payment) => payment.status === 'approved')
+      .sort((a, b) => new Date(b.approvedAt || b.createdAt || 0) - new Date(a.approvedAt || a.createdAt || 0));
+    const joiningPayment = approvedPayments[0];
+    const subscription = user.subscription || {};
+    const joiningAmount = joiningPayment?.amount ?? subscription.payableAmount ?? subscription.planAmount ?? 0;
+    const expiry = subscription.planExpiryDate || user.subscriptionExpiresAt;
+    const wallet = user.wallet || {};
+
+    return [
+      <div className="stack" key={`${user.id}-member`}>
+        <strong>{user.name}</strong>
+        <small>{user.referralCode || 'No referral code'}</small>
+      </div>,
+      <div className="stack" key={`${user.id}-contact`}>
+        <span>{user.mobile || '-'}</span>
+        <small>{user.email || '-'}</small>
+      </div>,
+      <div className="stack" key={`${user.id}-plan`}>
+        <strong>{subscription.planName || user.package?.name || 'Free Joiner'}</strong>
+        <small>{subscription.status === 'active' ? 'Plan active' : 'No active paid plan'}</small>
+      </div>,
+      <div className="stack" key={`${user.id}-dates`}>
+        <span>Account: {formatDate(user.createdAt)}</span>
+        <small>Plan: {formatDate(subscription.planStartDate || joiningPayment?.approvedAt || joiningPayment?.createdAt)}</small>
+      </div>,
+      <div className="stack" key={`${user.id}-expiry`}>
+        <strong>{formatDate(expiry)}</strong>
+        <small>{expiry ? `${daysRemaining(expiry)} days remaining` : 'No expiry date'}</small>
+      </div>,
+      <div className="stack" key={`${user.id}-amount`}>
+        <strong>{money(joiningAmount)}</strong>
+        <small>Base: {money(subscription.planAmount || user.package?.baseAmount || 0)}</small>
+      </div>,
+      <div className="stack" key={`${user.id}-wallet`}>
+        <strong>{money(wallet.availableBalance ?? wallet.balance ?? 0)}</strong>
+        <small>Earned: {money(wallet.totalEarned)} · Withdrawn: {money(wallet.withdrawnAmount)}</small>
+      </div>,
+      <div className="stack" key={`${user.id}-details`}>
+        <span>Sponsor: {user.sponsor?.name || 'Direct'}</span>
+        <small>Email {user.isEmailVerified ? 'verified' : 'not verified'} · Mobile {user.isMobileVerified ? 'verified' : 'not verified'}</small>
+        <small>Last login: {formatDate(user.lastLoginAt)}</small>
+      </div>
+    ];
+  });
+
+  return (
+    <section className="page-grid">
+      <div className="stat-grid">
+        {[
+          ['Active Users', activeUsers.length, UserCheck],
+          ['Joining Amount', money(totals.joining), BadgeIndianRupee],
+          ['Remaining Balance', money(totals.balance), Wallet],
+          ['Total Earned', money(totals.earned), Gift]
+        ].map(([label, value, Icon]) => (
+          <article className="stat-card" key={label}>
+            <Icon size={22} />
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </article>
+        ))}
+      </div>
+      <Panel
+        title="Active User Details"
+        icon={UserCheck}
+        action={(
+          <div className="search-box">
+            <Search size={17} />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search active users..." />
+          </div>
+        )}
+      >
+        <DataTable
+          columns={['Member', 'Contact', 'Plan', 'Joining Dates', 'Plan Expiry', 'Joining Amount', 'Remaining Now', 'Other Details']}
+          rows={rows}
+          empty={search ? 'No active users match your search.' : 'No active users found.'}
+        />
+      </Panel>
+    </section>
   );
 }
 
