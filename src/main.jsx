@@ -1308,7 +1308,9 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setActive }
         ))}
       </div>
       {activePlan && <p className="muted task-plan-note">{activePlan.name}</p>}
-      <p className="subscription-dates"><strong>Subscription:</strong> {user?.subscription?.planStartDate || '-'} to {user?.subscription?.planExpiryDate || '-'} · {user?.subscription?.status || 'free'}</p>
+      {activePlan?.id === firstPlanId && (
+        <p className="subscription-dates"><strong>Subscription:</strong> {user?.subscription?.planStartDate || '-'} to {user?.subscription?.planExpiryDate || '-'} · {user?.subscription?.status || 'free'}</p>
+      )}
       {!activePlanPurchased && <div className="activate-plan-message">This plan is inactive. <button className="mini-link" onClick={() => setActive('packages')}>Purchase / Activate</button></div>}
       {activePlanPurchased && (
         <div className="daily-progress-panel">
