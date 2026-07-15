@@ -883,11 +883,15 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
       <div className="portal-grid">
         <article className="panel">
           <h3>Plan Details</h3>
-          <div className="transaction-row"><span>Plan Name</span><strong>{subscription.planName || user?.package?.name || 'No active plan'}</strong></div>
-          <div className="transaction-row"><span>Plan Amount</span><strong>{money(subscription.planAmount || user?.package?.baseAmount)}</strong></div>
-          <div className="transaction-row"><span>Start Date</span><strong>{subscription.planStartDate || '-'}</strong></div>
-          <div className="transaction-row"><span>Expiry Date</span><strong>{subscription.planExpiryDate || '-'}</strong></div>
-          <div className="transaction-row"><span>Status</span><strong>{subscription.status || user?.status || 'inactive'}</strong></div>
+          {(subscription.plans || []).length ? subscription.plans.map((plan) => (
+            <div className="plan-subscription-row" key={plan.paymentId}>
+              <div className="transaction-row"><span>Plan Name</span><strong>{plan.planName}</strong></div>
+              <div className="transaction-row"><span>Plan Amount</span><strong>{money(plan.payableAmount || plan.planAmount)}</strong></div>
+              <div className="transaction-row"><span>Start Date</span><strong>{plan.planStartDate || '-'}</strong></div>
+              <div className="transaction-row"><span>Expiry Date</span><strong>{plan.planExpiryDate || '-'}</strong></div>
+              <div className="transaction-row"><span>Status</span><strong>{plan.status}</strong></div>
+            </div>
+          )) : <div className="transaction-row"><span>Plan</span><strong>Free Plan</strong></div>}
           <div className="transaction-row"><span>Remaining Ads</span><strong>{subscription.remainingAdvertisements ?? progressSummary.pending}</strong></div>
           <div className="transaction-row"><span>Total Ads</span><strong>{subscription.totalAdvertisements ?? progressSummary.total}</strong></div>
           <div className="transaction-row"><span>Completed Ads</span><strong>{subscription.advertisementsCompleted ?? progressSummary.completed}</strong></div>
@@ -1279,6 +1283,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setPaymentP
   }
   const effectivePlanId = selectedPlan || firstPlanId;
   const activePlan = taskPlans.find((pkg) => pkg.id === effectivePlanId) || taskPlans[0];
+  const selectedSubscription = (user?.subscription?.plans || []).find((plan) => plan.packageId === activePlan?.id);
   const planLabels = ['Free 10 Ads', 'A Plan', 'B Plan', 'C Plan'];
   const freePlanAvailable = !user?.createdAt || new Date(user.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000 >= Date.now();
   const hasActivePlanData = Array.isArray(user?.subscription?.activePlans);
@@ -1311,8 +1316,8 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setPaymentP
         ))}
       </div>
       {activePlan && <p className="muted task-plan-note">{activePlan.name}</p>}
-      {activePlan?.id === firstPlanId && (
-        <p className="subscription-dates"><strong>Subscription:</strong> {user?.subscription?.planStartDate || '-'} to {user?.subscription?.planExpiryDate || '-'} · {user?.subscription?.status || 'free'}</p>
+      {selectedSubscription && (
+        <p className="subscription-dates"><strong>{selectedSubscription.planName}:</strong> {selectedSubscription.planStartDate || '-'} to {selectedSubscription.planExpiryDate || '-'} · {selectedSubscription.status}</p>
       )}
       {!activePlanPurchased && activePlan && <div className="activate-plan-message">
         <div>

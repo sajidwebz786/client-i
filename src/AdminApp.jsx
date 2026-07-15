@@ -522,8 +522,7 @@ function ActiveUsersPage({ users }) {
 
   const totals = useMemo(() => activeUsers.reduce((summary, user) => {
     const approvedPayments = (user.payments || []).filter((payment) => payment.status === 'approved');
-    const latestPayment = approvedPayments.sort((a, b) => new Date(b.approvedAt || b.createdAt || 0) - new Date(a.approvedAt || a.createdAt || 0))[0];
-    summary.joining += Number(latestPayment?.amount ?? user.subscription?.payableAmount ?? user.subscription?.planAmount ?? 0);
+    summary.joining += approvedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     summary.balance += Number(user.wallet?.availableBalance ?? user.wallet?.balance ?? 0);
     summary.earned += Number(user.wallet?.totalEarned || 0);
     return summary;
@@ -545,10 +544,16 @@ function ActiveUsersPage({ users }) {
     const approvedPayments = (user.payments || [])
       .filter((payment) => payment.status === 'approved')
       .sort((a, b) => new Date(b.approvedAt || b.createdAt || 0) - new Date(a.approvedAt || a.createdAt || 0));
-    const joiningPayment = approvedPayments[0];
     const subscription = user.subscription || {};
-    const joiningAmount = joiningPayment?.amount ?? subscription.payableAmount ?? subscription.planAmount ?? 0;
-    const expiry = subscription.planExpiryDate || user.subscriptionExpiresAt;
+    const plans = subscription.plans || approvedPayments.map((payment) => ({
+      paymentId: payment.id,
+      planName: payment.package?.name || 'Plan',
+      planAmount: payment.package?.baseAmount,
+      payableAmount: payment.amount,
+      planStartDate: payment.approvedAt || payment.createdAt,
+      planExpiryDate: payment.subscriptionExpiresAt,
+      status: payment.subscriptionExpiresAt && new Date(payment.subscriptionExpiresAt) >= new Date() ? 'active' : 'expired'
+    }));
     const wallet = user.wallet || {};
 
     return [
@@ -561,20 +566,17 @@ function ActiveUsersPage({ users }) {
         <small>{user.email || '-'}</small>
       </div>,
       <div className="stack" key={`${user.id}-plan`}>
-        <strong>{subscription.planName || user.package?.name || 'Free Joiner'}</strong>
-        <small>{subscription.status === 'active' ? 'Plan active' : 'No active paid plan'}</small>
+        {plans.length ? plans.map((plan) => <span key={plan.paymentId}><strong>{plan.planName}</strong> <small>({plan.status})</small></span>) : <strong>Free Joiner</strong>}
       </div>,
       <div className="stack" key={`${user.id}-dates`}>
         <span>Account: {formatDate(user.createdAt)}</span>
-        <small>Plan: {formatDate(subscription.planStartDate || joiningPayment?.approvedAt || joiningPayment?.createdAt)}</small>
+        {plans.map((plan) => <small key={plan.paymentId}>{plan.planName}: {formatDate(plan.planStartDate)}</small>)}
       </div>,
       <div className="stack" key={`${user.id}-expiry`}>
-        <strong>{formatDate(expiry)}</strong>
-        <small>{expiry ? `${daysRemaining(expiry)} days remaining` : 'No expiry date'}</small>
+        {plans.length ? plans.map((plan) => <span key={plan.paymentId}><strong>{formatDate(plan.planExpiryDate)}</strong> <small>({daysRemaining(plan.planExpiryDate)} days)</small></span>) : <small>No paid plans</small>}
       </div>,
       <div className="stack" key={`${user.id}-amount`}>
-        <strong>{money(joiningAmount)}</strong>
-        <small>Base: {money(subscription.planAmount || user.package?.baseAmount || 0)}</small>
+        {plans.length ? plans.map((plan) => <span key={plan.paymentId}><strong>{money(plan.payableAmount || plan.planAmount)}</strong> <small>({plan.planName})</small></span>) : <strong>{money(0)}</strong>}
       </div>,
       <div className="stack" key={`${user.id}-wallet`}>
         <strong>{money(wallet.availableBalance ?? wallet.balance ?? 0)}</strong>
@@ -655,7 +657,11 @@ function UsersPage({ users, onRefresh }) {
           user.name,
           `${user.email || ''}\n${user.mobile || ''}`,
           approvedPlanNames(user),
-          `${user.subscription?.status || 'inactive'} · ${user.subscription?.advertisementsCompleted ?? 0}/${user.subscription?.totalAdvertisements ?? 0} ads · remaining ${user.subscription?.remainingAdvertisements ?? 0}`,
+          <div className="stack">
+            {(user.subscription?.plans || []).length ? user.subscription.plans.map((plan) => (
+              <small key={plan.paymentId}>{plan.planName}: {new Date(plan.planStartDate).toLocaleDateString()} – {new Date(plan.planExpiryDate).toLocaleDateString()} ({plan.status})</small>
+            )) : <small>Free account</small>}
+          </div>,
           user.sponsor?.name || 'Direct',
           <Badge tone={user.status === 'active' ? 'green' : user.status === 'blocked' ? 'coral' : 'gold'}>{user.status}</Badge>,
           <div className="row-actions">
