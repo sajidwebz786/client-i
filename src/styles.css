@@ -2012,6 +2012,36 @@ select:focus {
   text-align: left;
 }
 
+.plan-switcher button.plan-tier-0 { background: linear-gradient(135deg, #fff7d6, #ffedd5) !important; border-color: #f59e0b; }
+.plan-switcher button.plan-tier-1 { background: linear-gradient(135deg, #dbeafe, #eff6ff) !important; border-color: #3b82f6; }
+.plan-switcher button.plan-tier-2 { background: linear-gradient(135deg, #dcfce7, #f0fdf4) !important; border-color: #22c55e; }
+.plan-switcher button.plan-tier-3 { background: linear-gradient(135deg, #f3e8ff, #faf5ff) !important; border-color: #a855f7; }
+
+.plan-switcher button.plan-tier-0.active { box-shadow: 0 0 0 3px rgba(245,158,11,.28); }
+.plan-switcher button.plan-tier-1.active { box-shadow: 0 0 0 3px rgba(59,130,246,.25); }
+.plan-switcher button.plan-tier-2.active { box-shadow: 0 0 0 3px rgba(34,197,94,.25); }
+.plan-switcher button.plan-tier-3.active { box-shadow: 0 0 0 3px rgba(168,85,247,.25); }
+
+.activate-plan-message .mini-link {
+  padding: 12px 18px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  box-shadow: 0 10px 24px rgba(249,115,22,.3);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.task-video-error {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+  background: #fef2f2;
+  font-weight: 700;
+}
+
 .plan-switcher button.active {
   border-color: rgba(15, 118, 110, 0.42);
   background: var(--mint);

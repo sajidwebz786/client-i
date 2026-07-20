@@ -312,11 +312,12 @@ function sortTasksByPlan(tasks = [], packages = []) {
 }
 
 function todayBalance(walletData) {
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   return (walletData?.transactions || [])
     .filter((tx) => {
-      const createdDate = String(tx.createdAt || tx.updatedAt || '').slice(0, 10);
-      return createdDate === today && tx.type === 'credit';
+      const createdDate = String(tx.date || tx.createdAt || tx.updatedAt || '').slice(0, 10);
+      return createdDate === today && tx.type === 'credit' && (!tx.source || tx.source === 'wallet');
     })
     .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 }
@@ -1309,7 +1310,7 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setPaymentP
       <h2>Monthly calendar-based ad tasks.</h2>
       <div className="plan-switcher" aria-label="Task plan selector">
         {taskPlans.map((pkg, index) => (
-          <button key={pkg.id} className={`${activePlan?.id === pkg.id ? 'active' : ''} ${(pkg.id === freeTaskPlan.id ? freePlanAvailable : (activePaidPlanIds.has(pkg.id) || (!hasActivePlanData && user?.subscription?.status === 'active' && pkg.id === userPlanId))) ? 'purchased' : 'inactive-plan'}`} onClick={() => setSelectedPlan(pkg.id)}>
+          <button key={pkg.id} className={`plan-tier-${index} ${activePlan?.id === pkg.id ? 'active' : ''} ${(pkg.id === freeTaskPlan.id ? freePlanAvailable : (activePaidPlanIds.has(pkg.id) || (!hasActivePlanData && user?.subscription?.status === 'active' && pkg.id === userPlanId))) ? 'purchased' : 'inactive-plan'}`} onClick={() => setSelectedPlan(pkg.id)}>
             <strong>{planLabels[index] || pkg.name}</strong>
             <span>{pkg.name}</span>
           </button>
@@ -1397,6 +1398,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
   const storedProgress = readTaskProgress(userId, task);
   const [progress, setProgress] = useState(Number(storedProgress.percent || 0));
   const [watching, setWatching] = useState(false);
+  const [playerError, setPlayerError] = useState('');
   const youtubeMountRef = useRef(null);
   const youtubePlayerRef = useRef(null);
   const directVideoRef = useRef(null);
@@ -1432,11 +1434,21 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
     return true;
   }
 
-  function completeWatch(seconds = 0) {
-    setProgress(100);
-    saveTaskProgress(userId, task.id, { percent: 100, seconds });
-    setActiveTaskId?.('');
-    setWatchLockMessage?.(`Completed: ${task.title}`);
+  async function completeWatch(seconds = 0) {
+    try {
+      await api.put(`/tasks/${task.id}/progress`, { percent: 100, seconds: Number(seconds || 0), taskDate: todayKey() });
+      const completedProgress = { percent: 100, seconds: Number(seconds || 0), updatedAt: new Date().toISOString() };
+      localStorage.setItem(taskProgressKey(userId, task.id), JSON.stringify(completedProgress));
+      setProgress(100);
+      setActiveTaskId?.('');
+      setPlayerError('');
+      setWatchLockMessage?.(`Completed: ${task.title}. Reward credited successfully.`);
+      window.dispatchEvent(new CustomEvent('luminateads-task-progress', { detail: { userId, taskId: task.id, progress: completedProgress } }));
+      window.dispatchEvent(new CustomEvent('luminateads-wallet-refresh'));
+    } catch (error) {
+      setWatching(false);
+      setWatchLockMessage?.(error?.response?.data?.message || 'The task could not be confirmed. Please retry; the next advertisement remains locked until the reward is credited.');
+    }
   }
 
   useEffect(() => {
@@ -1472,6 +1484,16 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
         videoId: youtubeVideoId,
         playerVars: { controls: 0, disablekb: 1, fs: 0, rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
+          onError: (event) => {
+            clearInterval(progressTimer);
+            setWatching(false);
+            if (event.data === 101 || event.data === 150) {
+              setPlayerError('This video blocks in-app playback. It is being safely skipped and its reward will still be credited.');
+              completeWatch(0);
+            } else {
+              setPlayerError('This video is temporarily unavailable for in-app playback. Please retry or ask the administrator to replace it.');
+            }
+          },
           onReady: (event) => {
             const saved = readTaskProgress(userId, task);
             if (!restoredYouTubeRef.current && Number(saved.seconds || 0) > 0) {
@@ -1614,6 +1636,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
                   </div>
                 )}
               </div>
+              {playerError && <p className="task-video-error" role="alert">{playerError}</p>}
               {embedUrl && !isDirectVideo && !canTrackYouTube && !isCompleted && (
                 <div className="task-embed-actions">
                   <button type="button" className="ghost" onClick={openExternalTask}>Open outside</button>
