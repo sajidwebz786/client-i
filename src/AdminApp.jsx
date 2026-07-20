@@ -965,6 +965,10 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
   const [showTwentyTaskCreator, setShowTwentyTaskCreator] = useState(false);
   const newTodayRows = () => Array.from({ length: 20 }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', description: 'Watch the complete advertisement to finish this task.', rewardAmount: '0.5', packageId: '', status: 'active' }));
   const [todayTasks, setTodayTasks] = useState(newTodayRows);
+  const rewardForPackage = (packageId) => {
+    if (!packageId) return 0.5;
+    return perAdValue(packages.find((pkg) => pkg.id === packageId));
+  };
 
   async function postTodayTwenty() {
     if (todayTasks.some((item) => !item.taskUrl.trim())) {
@@ -1080,8 +1084,8 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
           </select>
           <input placeholder="Task URL" value={task.taskUrl} onChange={(e) => setTask({ ...task, taskUrl: e.target.value })} />
           <textarea required placeholder="Task instructions" value={task.description} onChange={(e) => setTask({ ...task, description: e.target.value })} />
-          <input type="number" step="0.01" placeholder="Reward per completed task" value={task.rewardAmount} onChange={(e) => setTask({ ...task, rewardAmount: e.target.value })} />
-          <select value={task.packageId} onChange={(e) => setTask({ ...task, packageId: e.target.value })}>
+          <input type="number" step="0.01" placeholder="Reward per completed task" value={task.rewardAmount} readOnly title="Automatically calculated from the selected plan" />
+          <select value={task.packageId} onChange={(e) => setTask({ ...task, packageId: e.target.value, rewardAmount: String(rewardForPackage(e.target.value)) })}>
             <option value="">All packages</option>
             {packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
           </select>
@@ -1099,7 +1103,8 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
             <table className="task-creator-table"><thead><tr><th>#</th><th>Title</th><th>Platform</th><th>Task URL</th><th>Instructions</th><th>Reward</th><th>Package</th><th>Status</th></tr></thead><tbody>
             {todayTasks.map((item, index) => {
               const update = (field, value) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
-              return <tr key={index}><td>{index + 1}</td><td><input value={item.title} onChange={(e) => update('title', e.target.value)} /></td><td><select value={item.platform} onChange={(e) => update('platform', e.target.value)}>{['youtube','instagram','facebook','google','website','whatsapp','banner','local','other'].map((value) => <option key={value}>{value}</option>)}</select></td><td><input value={item.taskUrl} onChange={(e) => update('taskUrl', e.target.value)} placeholder="URL" /></td><td><textarea value={item.description} onChange={(e) => update('description', e.target.value)} /></td><td><input type="number" step="0.01" value={item.rewardAmount} onChange={(e) => update('rewardAmount', e.target.value)} /></td><td><select value={item.packageId} onChange={(e) => update('packageId', e.target.value)}><option value="">Free / All</option>{packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}</select></td><td><select value={item.status} onChange={(e) => update('status', e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select></td></tr>;
+              const updatePackage = (packageId) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, packageId, rewardAmount: String(rewardForPackage(packageId)) } : row));
+              return <tr key={index}><td>{index + 1}</td><td><input value={item.title} onChange={(e) => update('title', e.target.value)} /></td><td><select value={item.platform} onChange={(e) => update('platform', e.target.value)}>{['youtube','instagram','facebook','google','website','whatsapp','banner','local','other'].map((value) => <option key={value}>{value}</option>)}</select></td><td><input value={item.taskUrl} onChange={(e) => update('taskUrl', e.target.value)} placeholder="URL" /></td><td><textarea value={item.description} onChange={(e) => update('description', e.target.value)} /></td><td><input type="number" step="0.01" value={item.rewardAmount} readOnly title="Automatically calculated from the selected plan" /></td><td><select value={item.packageId} onChange={(e) => updatePackage(e.target.value)}><option value="">Free / All</option>{packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}</select></td><td><select value={item.status} onChange={(e) => update('status', e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select></td></tr>;
             })}
             </tbody></table>
           </div>

@@ -1384,8 +1384,10 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setPaymentP
             setActiveTaskId={setActiveTaskId}
             setWatchLockMessage={setWatchLockMessage}
           />
-        ) : sortedTasks.length ? (
+        ) : effectiveRows.length >= activePlanTarget && activePlanCompleted >= activePlanTarget ? (
           <p className="muted">All available tasks are completed for today. Your activity is ready for payout tracking.</p>
+        ) : effectiveRows.length < activePlanTarget ? (
+          <p className="muted">Only {effectiveRows.length} of {activePlanTarget} tasks are available for this plan today. The remaining tasks have not been posted yet.</p>
         ) : (
           <p className="muted">No active tasks are available right now. New ad tasks will appear here automatically.</p>
         )}
