@@ -962,22 +962,32 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
   const emptyTask = { title: '', platform: 'youtube', taskUrl: '', description: '', rewardAmount: '0.5', packageId: '', status: 'active' };
   const [task, setTask] = useState(emptyTask);
   const [editingTaskId, setEditingTaskId] = useState('');
-  const [showTwentyTaskCreator, setShowTwentyTaskCreator] = useState(false);
-  const newTodayRows = () => Array.from({ length: 20 }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', description: 'Watch the complete advertisement to finish this task.', rewardAmount: '0.5', packageId: '', status: 'active' }));
-  const [todayTasks, setTodayTasks] = useState(newTodayRows);
+  const [creatorPlan, setCreatorPlan] = useState(null);
+  const newTodayRows = (count = 10, packageId = '', rewardAmount = 0.5) => Array.from({ length: count }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', description: 'Watch the complete advertisement to finish this task.', rewardAmount: String(rewardAmount), packageId, status: 'active' }));
+  const [todayTasks, setTodayTasks] = useState([]);
   const rewardForPackage = (packageId) => {
     if (!packageId) return 0.5;
     return perAdValue(packages.find((pkg) => pkg.id === packageId));
   };
+  const sortedTaskPackages = [...packages].sort((a, b) => Number(a.baseAmount || a.finalAmount || 0) - Number(b.baseAmount || b.finalAmount || 0)).slice(0, 3);
+  const creatorOptions = [
+    { label: 'Free', count: 10, packageId: '', reward: 0.5 },
+    ...sortedTaskPackages.map((pkg, index) => ({ label: `${String.fromCharCode(65 + index)} Plan`, count: 20, packageId: pkg.id, reward: perAdValue(pkg), packageName: pkg.name }))
+  ];
+
+  function openTaskCreator(option) {
+    setCreatorPlan(option);
+    setTodayTasks(newTodayRows(option.count, option.packageId, option.reward));
+  }
 
   async function postTodayTwenty() {
     if (todayTasks.some((item) => !item.taskUrl.trim())) {
       window.alert('Please enter all 20 task URLs before posting.');
       return;
     }
-    await api.post('/tasks/admin/post-today-20', { tasks: todayTasks.map((item) => ({ ...item, rewardAmount: Number(item.rewardAmount || 0) })) });
-    setTodayTasks(newTodayRows());
-    setShowTwentyTaskCreator(false);
+    await api.post('/tasks/admin/post-today-20', { packageId: creatorPlan?.packageId || null, tasks: todayTasks.map((item) => ({ ...item, packageId: creatorPlan?.packageId || null, rewardAmount: Number(creatorPlan?.reward || 0.5) })) });
+    setTodayTasks([]);
+    setCreatorPlan(null);
     onRefresh();
   }
 
@@ -1033,16 +1043,18 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
     <>
     <div className="task-creation-launch">
       <div><strong>Today's Task Creation</strong><span>{new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></div>
-      <button className="primary" onClick={() => setShowTwentyTaskCreator(true)}>Start Task Creation</button>
+      <div className="task-plan-create-actions">
+        {creatorOptions.map((option) => <button className={`task-plan-create-button ${option.packageId ? 'paid' : 'free'}`} key={option.label} onClick={() => openTaskCreator(option)}>Create {option.count} {option.label} Tasks</button>)}
+      </div>
     </div>
-    <div className="two-col">
+    <div className="tasks-admin-stack">
       <Panel title="Task Library" icon={ClipboardCheck}>
         {tasks.length ? (
           <div className="panel-actions">
             <button className="mini reject" onClick={deleteAllTasks}>Delete All Tasks</button>
           </div>
         ) : null}
-        <DataTable
+        <div className="task-admin-scroll"><DataTable
           columns={['Title', 'Platform', 'Reward', 'Status', 'Action']}
           rows={tasks.map((item) => [
             item.title,
@@ -1056,10 +1068,10 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
             </div>
           ])}
           empty="No tasks created yet."
-        />
+        /></div>
       </Panel>
       <Panel title="Task Completion Review" icon={ClipboardCheck}>
-        <DataTable
+        <div className="task-admin-scroll"><DataTable
           columns={['User', 'Task', 'Date', 'Progress', 'Reward', 'Status', 'Action']}
           rows={submissions.map((item) => [
             item.user?.name || 'Member',
@@ -1074,7 +1086,7 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
             </div>
           ])}
           empty="No task completion updates yet."
-        />
+        /></div>
       </Panel>
       <Panel title={editingTaskId ? 'Edit Promotion Task' : 'Create Promotion Task'} icon={ClipboardCheck}>
         <form className="stack" onSubmit={createTask}>
@@ -1086,7 +1098,7 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
           <textarea required placeholder="Task instructions" value={task.description} onChange={(e) => setTask({ ...task, description: e.target.value })} />
           <input type="number" step="0.01" placeholder="Reward per completed task" value={task.rewardAmount} readOnly title="Automatically calculated from the selected plan" />
           <select value={task.packageId} onChange={(e) => setTask({ ...task, packageId: e.target.value, rewardAmount: String(rewardForPackage(e.target.value)) })}>
-            <option value="">All packages</option>
+            <option value="">Free plan</option>
             {packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
           </select>
           <select value={task.status} onChange={(e) => setTask({ ...task, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select>
@@ -1095,20 +1107,19 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
         </form>
       </Panel>
     </div>
-    {showTwentyTaskCreator && (
+    {creatorPlan && (
       <div className="task-creator-backdrop" role="dialog" aria-modal="true">
         <div className="task-creator-modal">
-          <div className="task-creator-head"><div><h2>Create Today's 20 Tasks</h2><p>{new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p></div><button className="ghost" onClick={() => setShowTwentyTaskCreator(false)}>Close</button></div>
+          <div className="task-creator-head"><div><h2>Create Today's {creatorPlan.count} {creatorPlan.label} Tasks</h2><p>{creatorPlan.packageName || 'Free plan'} · Reward {money(creatorPlan.reward)} per completed task · {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p></div><button className="ghost" onClick={() => setCreatorPlan(null)}>Close</button></div>
           <div className="task-creator-table-wrap">
-            <table className="task-creator-table"><thead><tr><th>#</th><th>Title</th><th>Platform</th><th>Task URL</th><th>Instructions</th><th>Reward</th><th>Package</th><th>Status</th></tr></thead><tbody>
+            <table className="task-creator-table"><thead><tr><th>#</th><th>Title</th><th>Platform</th><th>Task URL</th><th>Instructions</th><th>Reward</th><th>Status</th></tr></thead><tbody>
             {todayTasks.map((item, index) => {
               const update = (field, value) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
-              const updatePackage = (packageId) => setTodayTasks((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, packageId, rewardAmount: String(rewardForPackage(packageId)) } : row));
-              return <tr key={index}><td>{index + 1}</td><td><input value={item.title} onChange={(e) => update('title', e.target.value)} /></td><td><select value={item.platform} onChange={(e) => update('platform', e.target.value)}>{['youtube','instagram','facebook','google','website','whatsapp','banner','local','other'].map((value) => <option key={value}>{value}</option>)}</select></td><td><input value={item.taskUrl} onChange={(e) => update('taskUrl', e.target.value)} placeholder="URL" /></td><td><textarea value={item.description} onChange={(e) => update('description', e.target.value)} /></td><td><input type="number" step="0.01" value={item.rewardAmount} readOnly title="Automatically calculated from the selected plan" /></td><td><select value={item.packageId} onChange={(e) => updatePackage(e.target.value)}><option value="">Free / All</option>{packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}</select></td><td><select value={item.status} onChange={(e) => update('status', e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select></td></tr>;
+              return <tr key={index}><td>{index + 1}</td><td><input value={item.title} onChange={(e) => update('title', e.target.value)} /></td><td><select value={item.platform} onChange={(e) => update('platform', e.target.value)}>{['youtube','instagram','facebook','google','website','whatsapp','banner','local','other'].map((value) => <option key={value}>{value}</option>)}</select></td><td><input value={item.taskUrl} onChange={(e) => update('taskUrl', e.target.value)} placeholder="URL" /></td><td><textarea value={item.description} onChange={(e) => update('description', e.target.value)} /></td><td><input type="number" step="0.01" value={creatorPlan.reward} readOnly title="Automatically fixed for this plan" /></td><td><select value={item.status} onChange={(e) => update('status', e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select></td></tr>;
             })}
             </tbody></table>
           </div>
-          <div className="task-creator-actions"><button className="ghost" onClick={() => setShowTwentyTaskCreator(false)}>Cancel</button><button className="primary" onClick={postTodayTwenty}>Post today's 20 tasks</button></div>
+          <div className="task-creator-actions"><button className="ghost" onClick={() => setCreatorPlan(null)}>Cancel</button><button className="primary" onClick={postTodayTwenty}>Post today's {creatorPlan.count} {creatorPlan.label} tasks</button></div>
         </div>
       </div>
     )}
