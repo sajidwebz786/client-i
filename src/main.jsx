@@ -398,7 +398,7 @@ function App() {
   useEffect(() => {
     if (!isLoggedIn) return undefined;
     let cancelled = false;
-    const refreshWallet = () => {
+    const refreshMemberData = () => {
       api.get('/wallet', { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
         .then((res) => {
           if (!cancelled) wallet.setData(res.data);
@@ -420,12 +420,22 @@ function App() {
         })
         .catch(() => {});
     };
-    window.addEventListener('luminateads-wallet-refresh', refreshWallet);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshMemberData();
+    };
+    refreshMemberData();
+    const refreshTimer = window.setInterval(refreshMemberData, 15000);
+    window.addEventListener('luminateads-wallet-refresh', refreshMemberData);
+    window.addEventListener('focus', refreshMemberData);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       cancelled = true;
-      window.removeEventListener('luminateads-wallet-refresh', refreshWallet);
+      window.clearInterval(refreshTimer);
+      window.removeEventListener('luminateads-wallet-refresh', refreshMemberData);
+      window.removeEventListener('focus', refreshMemberData);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [isLoggedIn, wallet.setData, tasks.setData, withdrawals.setData, payments.setData]);
+  }, [isLoggedIn, active, wallet.setData, tasks.setData, withdrawals.setData, payments.setData]);
 
   const navItems = [
     ['home', 'Home'],
@@ -846,8 +856,11 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
     ['Current Level', currentUserLevel(user), Layers3]
   ];
   const sortedDashboardTasks = sortTasksByPlan(tasks, packages);
-  const dashboardTarget = dailyTargetForUserTasks(user, sortedDashboardTasks, packages);
-  const progressSummary = getTaskProgressSummary(user?.id, sortedDashboardTasks, dashboardTarget);
+  const dashboardPlanId = user?.packageId || user?.package?.id || '';
+  const dashboardTasks = sortedDashboardTasks.filter((task) => dashboardPlanId ? taskPackageId(task) === dashboardPlanId : !taskPackageId(task));
+  const dashboardPackage = packages.find((pkg) => pkg.id === dashboardPlanId) || user?.package;
+  const dashboardTarget = dashboardPlanId ? Number(dailyAds(dashboardPackage) || 20) : 10;
+  const progressSummary = getTaskProgressSummary(user?.id, dashboardTasks, dashboardTarget);
   const watchedRows = progressSummary.rows.filter((row) => Number(row.progress.percent || 0) > 0);
   const gettingStarted = [
     ['Profile completed', Boolean(user?.name && user?.mobile)],
@@ -893,10 +906,10 @@ function Dashboard({ user, isLoggedIn, setAuthOpen, setActive, packages, wallet,
               <div className="transaction-row"><span>Status</span><strong>{plan.status}</strong></div>
             </div>
           )) : <div className="transaction-row"><span>Plan</span><strong>Free Plan</strong></div>}
-          <div className="transaction-row"><span>Remaining Ads</span><strong>{subscription.remainingAdvertisements ?? progressSummary.pending}</strong></div>
-          <div className="transaction-row"><span>Total Ads</span><strong>{subscription.totalAdvertisements ?? progressSummary.total}</strong></div>
-          <div className="transaction-row"><span>Completed Ads</span><strong>{subscription.advertisementsCompleted ?? progressSummary.completed}</strong></div>
-          <div className="transaction-row"><span>Remaining Tasks</span><strong>{subscription.remainingTasks ?? progressSummary.pending}</strong></div>
+          <div className="transaction-row"><span>Remaining Ads</span><strong>{progressSummary.pending}</strong></div>
+          <div className="transaction-row"><span>Total Ads</span><strong>{progressSummary.total}</strong></div>
+          <div className="transaction-row"><span>Completed Ads</span><strong>{progressSummary.completed}</strong></div>
+          <div className="transaction-row"><span>Remaining Tasks</span><strong>{progressSummary.pending}</strong></div>
         </article>
         <article className="panel">
           <h3>Invite Friends</h3>
