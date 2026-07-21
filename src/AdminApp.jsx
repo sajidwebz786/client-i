@@ -961,7 +961,7 @@ function PaymentsPage({ payments, onRefresh }) {
 function TasksPage({ tasks, submissions, packages, onRefresh }) {
   const emptyTask = { title: '', platform: 'youtube', taskUrl: '', description: '', rewardAmount: '0.5', packageId: '', status: 'active' };
   const [task, setTask] = useState(emptyTask);
-  const [editingTaskId, setEditingTaskId] = useState('');
+  const [taskEditor, setTaskEditor] = useState(null);
   const [creatorPlan, setCreatorPlan] = useState(null);
   const newTodayRows = (count = 10, packageId = '', rewardAmount = 0.5) => Array.from({ length: count }, (_, index) => ({ title: `Today's Advertisement ${index + 1}`, taskUrl: '', platform: 'youtube', description: 'Watch the complete advertisement to finish this task.', rewardAmount: String(rewardAmount), packageId, status: 'active' }));
   const [todayTasks, setTodayTasks] = useState([]);
@@ -985,10 +985,14 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
       window.alert('Please enter all 20 task URLs before posting.');
       return;
     }
-    await api.post('/tasks/admin/post-today-20', { packageId: creatorPlan?.packageId || null, tasks: todayTasks.map((item) => ({ ...item, packageId: creatorPlan?.packageId || null, rewardAmount: Number(creatorPlan?.reward || 0.5) })) });
-    setTodayTasks([]);
-    setCreatorPlan(null);
-    onRefresh();
+    try {
+      await api.post('/tasks/admin/post-today-20', { packageId: creatorPlan?.packageId || null, tasks: todayTasks.map((item) => ({ ...item, packageId: creatorPlan?.packageId || null, rewardAmount: Number(creatorPlan?.reward || 0.5) })) });
+      setTodayTasks([]);
+      setCreatorPlan(null);
+      onRefresh();
+    } catch (error) {
+      window.alert(error.response?.data?.message || error.message || 'Unable to post today\'s tasks.');
+    }
   }
 
   async function createTask(event) {
@@ -998,45 +1002,101 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
       rewardAmount: Number(task.rewardAmount || 0),
       packageId: task.packageId || null
     };
-    if (editingTaskId) {
-      await api.put(`/tasks/${editingTaskId}`, payload);
-    } else {
+    try {
       await api.post('/tasks', payload);
+      setTask(emptyTask);
+      onRefresh();
+    } catch (error) {
+      window.alert(error.response?.data?.message || error.message || 'Unable to create this task.');
     }
-    setTask(emptyTask);
-    setEditingTaskId('');
-    onRefresh();
   }
 
   function editTask(item) {
-    setEditingTaskId(item.id);
-    setTask({
-      title: item.title || '',
-      platform: item.platform || 'youtube',
-      taskUrl: item.taskUrl || '',
-      description: item.description || '',
-      rewardAmount: item.rewardAmount || '',
-      packageId: item.packageId || '',
-      status: item.status || 'active'
+    const dateKey = String(item.startsAt || item.createdAt || '').slice(0, 10);
+    const packageKey = item.packageId || '';
+    const matchingRows = tasks.filter((candidate) => {
+      const candidateDate = String(candidate.startsAt || candidate.createdAt || '').slice(0, 10);
+      return dateKey && candidateDate === dateKey && (candidate.packageId || '') === packageKey;
     });
+    const rows = (matchingRows.length ? matchingRows : [item]).map((candidate) => ({
+      id: candidate.id,
+      title: candidate.title || '',
+      platform: candidate.platform || 'youtube',
+      taskUrl: candidate.taskUrl || '',
+      description: candidate.description || '',
+      rewardAmount: candidate.rewardAmount || rewardForPackage(candidate.packageId || ''),
+      packageId: candidate.packageId || '',
+      status: candidate.status || 'active'
+    }));
+    const packageName = item.package?.name || packages.find((pkg) => pkg.id === packageKey)?.name || 'Free plan';
+    setTaskEditor({ mode: 'single', anchorId: item.id, dateKey, packageName, rows });
+  }
+
+  function updateEditorRow(id, field, value) {
+    setTaskEditor((editor) => ({ ...editor, rows: editor.rows.map((row) => row.id === id ? { ...row, [field]: value } : row) }));
+  }
+
+  async function saveTaskEditor() {
+    const rows = taskEditor.mode === 'batch' ? taskEditor.rows : taskEditor.rows.filter((row) => row.id === taskEditor.anchorId);
+    if (rows.some((row) => !row.title.trim() || !row.taskUrl.trim() || !row.description.trim())) {
+      window.alert('Title, task URL and instructions are required for every task.');
+      return;
+    }
+    try {
+      await Promise.all(rows.map((row) => api.put(`/tasks/${row.id}`, {
+        title: row.title,
+        platform: row.platform,
+        taskUrl: row.taskUrl,
+        description: row.description,
+        rewardAmount: Number(row.rewardAmount || 0),
+        packageId: row.packageId || null,
+        status: row.status
+      })));
+      setTaskEditor(null);
+      onRefresh();
+    } catch (error) {
+      window.alert(error.response?.data?.message || error.message || 'Unable to save the selected task(s).');
+    }
   }
 
   async function decide(id, action) {
-    await api.put(`/tasks/admin/submissions/${id}/${action}`, { adminRemarks: action === 'approve' ? 'Task fully completed and verified' : 'Task is not fully completed. Please finish this task and try again.' });
-    onRefresh();
+    if (!window.confirm(`${action === 'approve' ? 'Approve' : 'Reject'} this task completion?`)) return;
+    try {
+      await api.put(`/tasks/admin/submissions/${id}/${action}`, { adminRemarks: action === 'approve' ? 'Task fully completed and verified' : 'Task is not fully completed. Please finish this task and try again.' });
+      onRefresh();
+    } catch (error) {
+      window.alert(error.response?.data?.message || error.message || `Unable to ${action} this completion.`);
+    }
+  }
+
+  async function changeTaskStatus(item) {
+    const nextStatus = item.status === 'active' ? 'inactive' : 'active';
+    if (!window.confirm(`Change "${item.title}" to ${nextStatus}?`)) return;
+    try {
+      await api.put(`/tasks/${item.id}`, { status: nextStatus });
+      onRefresh();
+    } catch (error) {
+      window.alert(error.response?.data?.message || error.message || 'Unable to change task status.');
+    }
   }
 
   async function deleteTask(item) {
     if (!window.confirm(`Delete "${item.title}" permanently? This removes the task from member task lists.`)) return;
-    await api.delete(`/tasks/${item.id}`);
-    onRefresh();
+    try {
+      await api.delete(`/tasks/${item.id}`);
+      onRefresh();
+    } catch (error) {
+      window.alert(error.response?.data?.message || error.message || 'Unable to delete this task.');
+    }
   }
 
   async function deleteAllTasks() {
     if (!tasks.length) return;
     if (!window.confirm(`Delete all ${tasks.length} tasks permanently? This removes the current task library from member task lists.`)) return;
-    await Promise.all(tasks.map((item) => api.delete(`/tasks/${item.id}`)));
+    const results = await Promise.allSettled(tasks.map((item) => api.delete(`/tasks/${item.id}`)));
     onRefresh();
+    const failures = results.filter((result) => result.status === 'rejected');
+    if (failures.length) window.alert(`${tasks.length - failures.length} task(s) deleted; ${failures.length} could not be deleted.`);
   }
 
   return (
@@ -1063,7 +1123,7 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
             <Badge tone={item.status === 'active' ? 'green' : 'gold'}>{item.status}</Badge>,
             <div className="row-actions">
               <button className="mini" onClick={() => editTask(item)}>Edit</button>
-              <button className="mini" onClick={async () => { await api.put(`/tasks/${item.id}`, { status: item.status === 'active' ? 'inactive' : 'active' }); onRefresh(); }}>Status</button>
+              <button className="mini" onClick={() => changeTaskStatus(item)}>Status</button>
               <button className="mini reject" onClick={() => deleteTask(item)}>Delete</button>
             </div>
           ])}
@@ -1088,7 +1148,7 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
           empty="No task completion updates yet."
         /></div>
       </Panel>
-      <Panel title={editingTaskId ? 'Edit Promotion Task' : 'Create Promotion Task'} icon={ClipboardCheck}>
+      <Panel title="Create Promotion Task" icon={ClipboardCheck}>
         <form className="stack" onSubmit={createTask}>
           <input required placeholder="Task title" value={task.title} onChange={(e) => setTask({ ...task, title: e.target.value })} />
           <select value={task.platform} onChange={(e) => setTask({ ...task, platform: e.target.value })}>
@@ -1102,8 +1162,7 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
             {packages.map((pkg) => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
           </select>
           <select value={task.status} onChange={(e) => setTask({ ...task, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select>
-          <button className="primary">{editingTaskId ? 'Update Task' : 'Create Task'}</button>
-          {editingTaskId && <button type="button" className="ghost" onClick={() => { setEditingTaskId(''); setTask(emptyTask); }}>Cancel Edit</button>}
+          <button className="primary">Create Task</button>
         </form>
       </Panel>
     </div>
@@ -1120,6 +1179,28 @@ function TasksPage({ tasks, submissions, packages, onRefresh }) {
             </tbody></table>
           </div>
           <div className="task-creator-actions"><button className="ghost" onClick={() => setCreatorPlan(null)}>Cancel</button><button className="primary" onClick={postTodayTwenty}>Post today's {creatorPlan.count} {creatorPlan.label} tasks</button></div>
+        </div>
+      </div>
+    )}
+    {taskEditor && (
+      <div className="task-creator-backdrop" role="dialog" aria-modal="true" aria-label="Edit promotion tasks">
+        <div className="task-creator-modal task-editor-modal">
+          <div className="task-creator-head">
+            <div><h2>Edit {taskEditor.packageName} Tasks</h2><p>{taskEditor.dateKey || 'Selected task date'} · Choose one row or the complete matching plan batch.</p></div>
+            <button className="ghost" onClick={() => setTaskEditor(null)}>Close</button>
+          </div>
+          <div className="task-edit-scope" role="group" aria-label="Edit scope">
+            <button className={taskEditor.mode === 'single' ? 'primary' : 'ghost'} onClick={() => setTaskEditor((editor) => ({ ...editor, mode: 'single' }))}>Single Task</button>
+            <button className={taskEditor.mode === 'batch' ? 'primary' : 'ghost'} onClick={() => setTaskEditor((editor) => ({ ...editor, mode: 'batch' }))}>Complete Plan Batch ({taskEditor.rows.length})</button>
+          </div>
+          <div className="task-creator-table-wrap">
+            <table className="task-creator-table"><thead><tr><th>#</th><th>Title</th><th>Platform</th><th>Task URL</th><th>Instructions</th><th>Reward</th><th>Status</th></tr></thead><tbody>
+              {(taskEditor.mode === 'batch' ? taskEditor.rows : taskEditor.rows.filter((row) => row.id === taskEditor.anchorId)).map((row, index) => (
+                <tr key={row.id}><td>{index + 1}</td><td><input value={row.title} onChange={(event) => updateEditorRow(row.id, 'title', event.target.value)} /></td><td><select value={row.platform} onChange={(event) => updateEditorRow(row.id, 'platform', event.target.value)}>{['youtube','instagram','facebook','google','website','whatsapp','banner','local','other'].map((value) => <option key={value}>{value}</option>)}</select></td><td><input value={row.taskUrl} onChange={(event) => updateEditorRow(row.id, 'taskUrl', event.target.value)} /></td><td><textarea value={row.description} onChange={(event) => updateEditorRow(row.id, 'description', event.target.value)} /></td><td><input type="number" step="0.01" value={row.rewardAmount} readOnly title="Automatically fixed for this plan" /></td><td><select value={row.status} onChange={(event) => updateEditorRow(row.id, 'status', event.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select></td></tr>
+              ))}
+            </tbody></table>
+          </div>
+          <div className="task-creator-actions"><button className="ghost" onClick={() => setTaskEditor(null)}>Cancel</button><button className="primary" onClick={saveTaskEditor}>Save {taskEditor.mode === 'batch' ? `${taskEditor.rows.length} Tasks` : 'Task'}</button></div>
         </div>
       </div>
     )}

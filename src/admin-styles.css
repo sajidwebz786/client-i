@@ -1126,6 +1126,9 @@ thead th,
 .task-creator-table td:nth-child(4) input { min-width:230px; }
 .task-creator-table textarea { min-width:240px; height:58px; resize:vertical; }
 .task-creator-actions { justify-content:flex-end; }
+.task-edit-scope { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; padding:10px; border:1px solid var(--line); border-radius:14px; background:#fff7ed; }
+.task-edit-scope button { min-width:180px; }
+.task-editor-modal { height:min(90vh,820px); }
 
 @media (max-width:1100px) {
   .task-creation-launch { align-items:stretch; flex-direction:column; }
