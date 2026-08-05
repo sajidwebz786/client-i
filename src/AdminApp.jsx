@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Contact,
   CreditCard,
+  Eye,
   FileBarChart,
   Gem,
   Gift,
@@ -627,6 +628,9 @@ function ActiveUsersPage({ users }) {
 }
 
 function UsersPage({ users, onRefresh }) {
+  const [search, setSearch] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+
   function approvedPlanNames(user) {
     const names = (user.payments || [])
       .filter((payment) => payment.status === 'approved' && payment.package?.name)
@@ -649,36 +653,55 @@ function UsersPage({ users, onRefresh }) {
     onRefresh();
   }
 
+  const filteredUsers = users.filter((user) => {
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+    return [user.name, user.email, user.mobile, user.referralCode, user.sponsor?.name, approvedPlanNames(user), user.status]
+      .some((value) => String(value || '').toLowerCase().includes(query));
+  });
+
+  async function updateStatus(user) {
+    await api.put(`/admin/users/${user.id}`, { status: user.status === 'active' ? 'inactive' : 'active' });
+    setSelectedUser(null);
+    onRefresh();
+  }
+
+  const Detail = ({ label, value }) => <div className="member-detail"><span>{label}</span><strong>{value || 'Not provided'}</strong></div>;
+
   return (
-    <Panel title="Member Management" icon={Users} action={<SearchBox />}>
-      <DataTable
-        columns={['Name', 'Contact', 'Approved Plans', 'Subscription', 'Sponsor', 'Status', 'Action']}
-        rows={users.map((user) => [
-          user.name,
-          `${user.email || ''}\n${user.mobile || ''}`,
-          approvedPlanNames(user),
-          <div className="stack">
-            {(user.subscription?.plans || []).length ? user.subscription.plans.map((plan) => (
-              <small key={plan.paymentId}>{plan.planName}: {new Date(plan.planStartDate).toLocaleDateString()} – {new Date(plan.planExpiryDate).toLocaleDateString()} ({plan.status})</small>
-            )) : <small>Free account</small>}
-          </div>,
-          user.sponsor?.name || 'Direct',
-          <Badge tone={user.status === 'active' ? 'green' : user.status === 'blocked' ? 'coral' : 'gold'}>{user.status}</Badge>,
-          <div className="row-actions">
-            <button className="mini" onClick={() => editUser(user)}>Edit</button>
-            <button className="mini" onClick={async () => { await api.put(`/admin/users/${user.id}`, { status: user.status === 'active' ? 'inactive' : 'active' }); onRefresh(); }}>{user.status === 'active' ? 'Inactive' : 'Activate'}</button>
-            <button className="mini" onClick={async () => { await api.put(`/admin/users/${user.id}`, { status: 'active', isMobileVerified: true, isEmailVerified: true }); onRefresh(); }}>Permission</button>
-            <button className="mini" onClick={() => resetPassword(user)}>Password</button>
-            {user.status === 'blocked' ? (
-              <button className="mini approve" onClick={async () => { await api.put(`/admin/users/${user.id}`, { status: 'active', isMobileVerified: true, isEmailVerified: true }); onRefresh(); }}>Restore</button>
-            ) : (
-              <button className="mini reject" onClick={async () => { if (window.confirm(`Block login for ${user.name}?`)) { await api.delete(`/admin/users/${user.id}`); onRefresh(); } }}>Block</button>
-            )}
-            <button className="mini reject" onClick={async () => { if (window.confirm(`Permanently delete ${user.name} and all related records? This cannot be undone.`)) { await api.delete(`/admin/users/${user.id}/permanent`); onRefresh(); } }}>Delete</button>
-          </div>
-        ])}
-        empty="No users yet."
-      />
+    <Panel title="Member Management" icon={Users} action={<label className="search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search members" /></label>}>
+      <div className="member-list-summary"><span>{filteredUsers.length} of {users.length} members</span><small>Open a profile to view complete account and payout information.</small></div>
+      <div className="member-table-wrap">
+        <table className="member-table">
+          <thead><tr><th>Member</th><th>Contact</th><th>Plan</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>{filteredUsers.length ? filteredUsers.map((user) => (
+            <tr key={user.id}>
+              <td><div className="member-cell"><div className="member-avatar small">{user.avatarUrl ? <img src={absoluteAssetUrl(user.avatarUrl)} alt="" /> : user.name?.charAt(0)?.toUpperCase()}</div><div><strong>{user.name}</strong><small>ID: {user.referralCode || user.id.slice(0, 8)}</small></div></div></td>
+              <td><div className="member-contact"><span>{user.mobile || 'No mobile'}</span><small>{user.email || 'No email'}</small></div></td>
+              <td><strong>{approvedPlanNames(user)}</strong><small className="table-subtext">Sponsor: {user.sponsor?.name || 'Direct'}</small></td>
+              <td><Badge tone={user.status === 'active' ? 'green' : user.status === 'blocked' ? 'coral' : 'gold'}>{user.status}</Badge></td>
+              <td><div className="member-quick-actions"><button className="member-view-button" onClick={() => setSelectedUser(user)} title={`View ${user.name}`}><Eye size={17} /> View</button><button className="mini" onClick={() => editUser(user)}>Edit</button><button className="mini" onClick={() => updateStatus(user)}>{user.status === 'active' ? 'Deactivate' : 'Activate'}</button></div></td>
+            </tr>
+          )) : <tr><td colSpan="5"><Empty text={search ? 'No members match your search.' : 'No users yet.'} /></td></tr>}</tbody>
+        </table>
+      </div>
+      {selectedUser && (
+        <div className="member-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedUser(null); }}>
+          <section className="member-modal" role="dialog" aria-modal="true" aria-label={`${selectedUser.name} profile`}>
+            <header className="member-modal-hero">
+              <button className="member-modal-close" onClick={() => setSelectedUser(null)} aria-label="Close profile"><XCircle size={22} /></button>
+              <div className="member-avatar">{selectedUser.avatarUrl ? <img src={absoluteAssetUrl(selectedUser.avatarUrl)} alt={selectedUser.name} /> : selectedUser.name?.charAt(0)?.toUpperCase()}</div>
+              <div><span className="member-kicker">Member profile</span><h2>{selectedUser.name}</h2><p>{selectedUser.email} · {selectedUser.mobile}</p><Badge tone={selectedUser.status === 'active' ? 'green' : selectedUser.status === 'blocked' ? 'coral' : 'gold'}>{selectedUser.status}</Badge></div>
+            </header>
+            <div className="member-modal-body">
+              <div className="member-detail-section"><h3>Personal information</h3><div className="member-detail-grid"><Detail label="Full name" value={selectedUser.name} /><Detail label="Date of birth" value={selectedUser.dob ? new Date(selectedUser.dob).toLocaleDateString('en-IN') : ''} /><Detail label="Email" value={selectedUser.email} /><Detail label="Mobile" value={selectedUser.mobile} /><Detail label="Referral code" value={selectedUser.referralCode} /><Detail label="Sponsor" value={selectedUser.sponsor?.name || 'Direct'} /><Detail label="Joined" value={selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleString('en-IN') : ''} /><Detail label="Last login" value={selectedUser.lastLoginAt ? new Date(selectedUser.lastLoginAt).toLocaleString('en-IN') : 'Never'} /></div></div>
+              <div className="member-detail-section"><h3>Account and verification</h3><div className="member-detail-grid"><Detail label="Approved plans" value={approvedPlanNames(selectedUser)} /><Detail label="Wallet balance" value={money(selectedUser.wallet?.availableBalance ?? selectedUser.wallet?.balance)} /><Detail label="Email verified" value={selectedUser.isEmailVerified ? 'Verified' : 'Not verified'} /><Detail label="Mobile verified" value={selectedUser.isMobileVerified ? 'Verified' : 'Not verified'} /></div><div className="member-plan-list">{(selectedUser.subscription?.plans || []).length ? selectedUser.subscription.plans.map((plan) => <div key={plan.paymentId}><strong>{plan.planName}</strong><span>{new Date(plan.planStartDate).toLocaleDateString('en-IN')} – {new Date(plan.planExpiryDate).toLocaleDateString('en-IN')}</span><Badge tone={plan.status === 'active' ? 'green' : 'gold'}>{plan.status}</Badge></div>) : <p>No paid subscriptions. This is a free account.</p>}</div></div>
+              <div className="member-detail-section payout"><h3>Bank and UPI payout details</h3><div className="member-detail-grid"><Detail label="Account holder" value={selectedUser.bankDetail?.accountHolderName} /><Detail label="Bank name" value={selectedUser.bankDetail?.bankName} /><Detail label="Account number" value={selectedUser.bankDetail?.accountNumber} /><Detail label="IFSC code" value={selectedUser.bankDetail?.ifscCode} /><Detail label="UPI ID" value={selectedUser.bankDetail?.upiId} /><Detail label="PAN number" value={selectedUser.bankDetail?.panNumber} /><Detail label="Aadhaar number" value={selectedUser.bankDetail?.aadhaarNumber} /></div></div>
+            </div>
+            <footer className="member-modal-actions"><button className="mini" onClick={() => editUser(selectedUser)}>Edit member</button><button className="mini" onClick={() => resetPassword(selectedUser)}>Reset password</button><button className="mini approve" onClick={async () => { await api.put(`/admin/users/${selectedUser.id}`, { status: 'active', isMobileVerified: true, isEmailVerified: true }); setSelectedUser(null); onRefresh(); }}>Grant permission</button>{selectedUser.status === 'blocked' ? <button className="mini approve" onClick={async () => { await api.put(`/admin/users/${selectedUser.id}`, { status: 'active', isMobileVerified: true, isEmailVerified: true }); setSelectedUser(null); onRefresh(); }}>Restore</button> : <button className="mini reject" onClick={async () => { if (window.confirm(`Block login for ${selectedUser.name}?`)) { await api.delete(`/admin/users/${selectedUser.id}`); setSelectedUser(null); onRefresh(); } }}>Block login</button>}<button className="mini reject" onClick={async () => { if (window.confirm(`Permanently delete ${selectedUser.name} and all related records? This cannot be undone.`)) { await api.delete(`/admin/users/${selectedUser.id}/permanent`); setSelectedUser(null); onRefresh(); } }}>Delete permanently</button></footer>
+          </section>
+        </div>
+      )}
     </Panel>
   );
 }
