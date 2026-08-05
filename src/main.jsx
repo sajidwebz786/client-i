@@ -134,8 +134,7 @@ function syncTaskProgress(userId, taskId, progress, date = todayKey()) {
   progressSyncCache.set(key, { time: now, percent });
   api.put(`/tasks/${taskId}/progress`, {
     percent,
-    seconds: Number(progress.seconds || 0),
-    taskDate: date
+    seconds: Number(progress.seconds || 0)
   }).then(() => {
     if (percent >= 100) {
       window.dispatchEvent(new CustomEvent('luminateads-wallet-refresh'));
@@ -1313,9 +1312,9 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setPaymentP
   const activePlanPending = Math.max(activePlanTarget - activePlanCompleted, 0);
   const activePlanAverage = activePlanTarget ? Math.round(effectiveRows.reduce((sum, row) => sum + Number(row.progress.percent || 0), 0) / activePlanTarget) : 0;
   const calendar = getMonthlyCalendar(new Date(), activePlanTarget, activePlanCompleted);
-  const nextTaskRow = effectiveRows.find((row) => Number(row.progress.percent || 0) < 100);
+  const nextTaskRow = effectiveRows.find((row) => Number(row.progress.percent || 0) > 0 && Number(row.progress.percent || 0) < 100)
+    || effectiveRows.find((row) => Number(row.progress.percent || 0) < 100);
   const currentTask = nextTaskRow?.task || null;
-  const currentTaskNumber = currentTask ? effectiveRows.findIndex((row) => row.task.id === currentTask.id) + 1 : activePlanTarget;
 
   return (
     <section className="section">
@@ -1383,19 +1382,15 @@ function TasksPage({ tasks, packages, user, isLoggedIn, setAuthOpen, setPaymentP
       </p>
       {activePlanPurchased && currentTask && (
         <div className="task-sequence-panel">
-          <strong>Current task {currentTaskNumber} of {activePlanTarget}</strong>
-          <span>Complete this task to continue.</span>
+          <strong>Current task for {activePlan.name}</strong>
+          <span>Complete this task to unlock the next task in this plan. You may switch plans at any time.</span>
         </div>
       )}
       <div className="task-list">
         {!activePlanPurchased ? <p className="muted">Tasks will become available after this plan is purchased and approved.</p> : currentTask ? (
           <TaskCard
-            task={currentTask}
-            userId={user?.id}
-            key={currentTask.id}
-            activeTaskId={activeTaskId}
-            setActiveTaskId={setActiveTaskId}
-            setWatchLockMessage={setWatchLockMessage}
+            task={currentTask} userId={user?.id} key={currentTask.id} activeTaskId={activeTaskId}
+            setActiveTaskId={setActiveTaskId} setWatchLockMessage={setWatchLockMessage}
           />
         ) : effectiveRows.length >= activePlanTarget && activePlanCompleted >= activePlanTarget ? (
           <p className="muted">All available tasks are completed for today. Your activity is ready for payout tracking.</p>
@@ -1421,7 +1416,6 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
   const directMaxWatchedRef = useRef(Number(storedProgress.seconds || 0));
   const restoredDirectRef = useRef(false);
   const restoredYouTubeRef = useRef(false);
-  const activeTaskIdRef = useRef(activeTaskId);
   const videoUrl = task.videoUrl || task.mediaUrl || task.taskUrl || '';
   const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(videoUrl);
   const embedUrl = getEmbedUrl(videoUrl);
@@ -1429,20 +1423,12 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
   const youtubeVideoId = getYouTubeId(videoUrl);
   const canTrackYouTube = isYouTubeVideo && Boolean(youtubeVideoId);
   const isCompleted = progress >= 100;
-  const isLocked = Boolean(activeTaskId && activeTaskId !== task.id && !isCompleted);
-
-  useEffect(() => {
-    activeTaskIdRef.current = activeTaskId;
-  }, [activeTaskId]);
+  const isLocked = false;
 
   function requestWatchStart() {
     if (isCompleted) {
       setWatchLockMessage?.('');
       return true;
-    }
-    if (activeTaskIdRef.current && activeTaskIdRef.current !== task.id) {
-      setWatchLockMessage?.('Please complete the current task first.');
-      return false;
     }
     setActiveTaskId?.(task.id);
     setWatchLockMessage?.(`Task started: ${task.title}`);
@@ -1451,7 +1437,7 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
 
   async function completeWatch(seconds = 0) {
     try {
-      await api.put(`/tasks/${task.id}/progress`, { percent: 100, seconds: Number(seconds || 0), taskDate: todayKey() });
+      await api.put(`/tasks/${task.id}/progress`, { percent: 100, seconds: Number(seconds || 0) });
       const completedProgress = { percent: 100, seconds: Number(seconds || 0), updatedAt: new Date().toISOString() };
       localStorage.setItem(taskProgressKey(userId, task.id), JSON.stringify(completedProgress));
       setProgress(100);
@@ -1511,10 +1497,12 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
           },
           onReady: (event) => {
             const saved = readTaskProgress(userId, task);
-            if (!restoredYouTubeRef.current && Number(saved.seconds || 0) > 0) {
+            const duration = Number(event.target?.getDuration?.() || 0);
+            const resumeSeconds = Number(saved.seconds || 0) || (duration * Number(saved.percent || 0)) / 100;
+            if (!restoredYouTubeRef.current && resumeSeconds > 0 && (!duration || resumeSeconds < duration)) {
               restoredYouTubeRef.current = true;
-              youtubeMaxWatchedRef.current = Number(saved.seconds);
-              event.target.seekTo(Number(saved.seconds), true);
+              youtubeMaxWatchedRef.current = resumeSeconds;
+              event.target.seekTo(resumeSeconds, true);
               setProgress(Number(saved.percent || 0));
             }
           },
@@ -1601,9 +1589,11 @@ function TaskCard({ task, userId, activeTaskId, setActiveTaskId, setWatchLockMes
   function restoreDirectVideo(event) {
     if (restoredDirectRef.current) return;
     const saved = readTaskProgress(userId, task);
-    if (Number(saved.seconds || 0) > 0 && event.currentTarget.duration && Number(saved.seconds) < event.currentTarget.duration) {
-      directMaxWatchedRef.current = Number(saved.seconds);
-      event.currentTarget.currentTime = Number(saved.seconds);
+    const duration = Number(event.currentTarget.duration || 0);
+    const resumeSeconds = Number(saved.seconds || 0) || (duration * Number(saved.percent || 0)) / 100;
+    if (resumeSeconds > 0 && duration && resumeSeconds < duration) {
+      directMaxWatchedRef.current = resumeSeconds;
+      event.currentTarget.currentTime = resumeSeconds;
       setProgress(Number(saved.percent || 0));
     }
     restoredDirectRef.current = true;
@@ -1750,7 +1740,6 @@ function WalletPage({ wallet, withdrawals, payments, isLoggedIn, setAuthOpen, se
   const [bank, setBank] = useState({ bankName: '', accountHolderName: '', accountNumber: '', ifscCode: '', upiId: '' });
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawSearch, setWithdrawSearch] = useState('');
-  if (!isLoggedIn) return <Gate title="Your rewards stay organized." text="Login to see your balance, save bank or UPI details, and request money when you are ready." action={setAuthOpen} />;
   const withdrawalHistory = (withdrawals?.withdrawals || []).length
     ? withdrawals.withdrawals
     : (wallet.transactions || []).filter((tx) => tx.transactionType === 'withdrawal_request' || tx.category === 'withdrawal');
@@ -1758,9 +1747,26 @@ function WalletPage({ wallet, withdrawals, payments, isLoggedIn, setAuthOpen, se
   const filteredWithdrawals = withdrawalHistory.filter((tx) => `${tx.id || tx.transactionId || ''} ${tx.statusLabel || tx.status || ''} ${tx.transactionReferenceNumber || tx.transactionNumber || ''} ${tx.remarks || tx.adminRemarks || ''}`.toLowerCase().includes(withdrawSearch.toLowerCase()));
   const idTransactions = (wallet.transactions || []).filter((tx) => tx.transactionId || tx.id);
 
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
+    let mounted = true;
+    api.get('/wallet/bank-details', { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
+      .then((response) => {
+        if (!mounted || !response.data?.bankDetail) return;
+        const details = response.data.bankDetail;
+        setBank({ bankName: details.bankName || '', accountHolderName: details.accountHolderName || '', accountNumber: details.accountNumber || '', ifscCode: details.ifscCode || '', upiId: details.upiId || '' });
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, [isLoggedIn]);
+
+  if (!isLoggedIn) return <Gate title="Your rewards stay organized." text="Login to see your balance, save bank or UPI details, and request money when you are ready." action={setAuthOpen} />;
+
   async function saveBank() {
     try {
-      await api.put('/wallet/bank-details', bank);
+      const response = await api.put('/wallet/bank-details', bank);
+      const details = response.data?.bankDetail || bank;
+      setBank({ bankName: details.bankName || '', accountHolderName: details.accountHolderName || '', accountNumber: details.accountNumber || '', ifscCode: details.ifscCode || '', upiId: details.upiId || '' });
       setNotice('Bank details saved and locked for security.');
     } catch (err) {
       setNotice(err.response?.data?.message || 'Please contact support to change saved bank details.');
